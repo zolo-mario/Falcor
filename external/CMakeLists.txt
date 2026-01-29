@@ -401,42 +401,6 @@ set(NANOVDB_DIR ${PACKMAN_DIR}/nanovdb)
 add_library(nanovdb INTERFACE)
 target_include_directories(nanovdb INTERFACE ${NANOVDB_DIR}/include)
 
-# nv-usd
-set(NV_USD_RELEASE_DIR ${PACKMAN_DIR}/nv-usd-release)
-set(NV_USD_DEBUG_DIR ${PACKMAN_DIR}/nv-usd-debug)
-if((EXISTS ${NV_USD_RELEASE_DIR}) AND (EXISTS ${NV_USD_DEBUG_DIR}))
-    if(FALCOR_WINDOWS)
-        add_library(nv-usd INTERFACE)
-        target_include_directories(nv-usd INTERFACE
-            $<$<CONFIG:Release>:${NV_USD_RELEASE_DIR}/include ${NV_USD_RELEASE_DIR}/include/boost-1_76>
-            $<$<CONFIG:Debug>:${NV_USD_DEBUG_DIR}/include ${NV_USD_DEBUG_DIR}/include/boost-1_76>
-        )
-        target_link_directories(nv-usd INTERFACE
-            $<$<CONFIG:Release>:${NV_USD_RELEASE_DIR}/lib ${NV_USD_RELEASE_DIR}/plugin/usd>
-            $<$<CONFIG:Debug>:${NV_USD_DEBUG_DIR}/lib ${NV_USD_DEBUG_DIR}/plugin/usd>
-        )
-        target_link_libraries(nv-usd INTERFACE
-            usd_ms.lib
-        )
-        target_compile_definitions(nv-usd INTERFACE
-            _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
-            $<$<CONFIG:Release>:TBB_USE_DEBUG=0>
-            $<$<CONFIG:Debug>:TBB_USE_DEBUG=1>
-        )
-    elseif(FALCOR_LINUX)
-        add_library(nv-usd SHARED IMPORTED GLOBAL)
-        set_target_properties(nv-usd PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${NV_USD_RELEASE_DIR}/include;${NV_USD_RELEASE_DIR}/include/boost"
-            IMPORTED_LOCATION_RELEASE ${NV_USD_RELEASE_DIR}/lib/libusd_ms.so
-            IMPORTED_LOCATION_DEBUG ${NV_USD_DEBUG_DIR}/lib/libusd_ms.so
-            INTERFACE_LINK_LIBRARIES "tbb"
-        )
-    endif()
-    set(FALCOR_HAS_NV_USD ON PARENT_SCOPE)
-else()
-    set(FALCOR_HAS_NV_USD OFF PARENT_SCOPE)
-endif()
-
 # mdl-sdk
 set(MDL_SDK_DIR ${PACKMAN_DIR}/mdl-sdk)
 if(EXISTS ${MDL_SDK_DIR})

@@ -26,10 +26,6 @@ set(FALCOR_ENABLE_PROFILER ON CACHE BOOL "Enable profiler")
 # Enable/disable using system Python distribution. This requires Python 3.7 to be available.
 set(FALCOR_USE_SYSTEM_PYTHON OFF CACHE BOOL "Use system Python distribution")
 
-# Enable/disable USD.
-set(FALCOR_ENABLE_USD ON CACHE BOOL "Enable USD")
-
-
 # Enable/disable Address Sanitizer.
 set(FALCOR_ENABLE_ASAN OFF CACHE BOOL "Enable Address Sanitizer")
 
@@ -214,9 +210,7 @@ message(STATUS "FALCOR_HAS_OPTIX: ${FALCOR_HAS_OPTIX}")
 message(STATUS "FALCOR_HAS_D3D12_AGILITY_SDK: ${FALCOR_HAS_D3D12_AGILITY_SDK}")
 message(STATUS "FALCOR_HAS_NRD: ${FALCOR_HAS_NRD}")
 message(STATUS "FALCOR_HAS_DLSS: ${FALCOR_HAS_DLSS}")
-message(STATUS "FALCOR_HAS_NV_USD: ${FALCOR_HAS_NV_USD}")
 message(STATUS "FALCOR_HAS_MDL_SDK: ${FALCOR_HAS_MDL_SDK}")
-message(STATUS "FALCOR_ENABLE_USD: ${FALCOR_ENABLE_USD}")
 
 # -----------------------------------------------------------------------------
 # Packman dependencies

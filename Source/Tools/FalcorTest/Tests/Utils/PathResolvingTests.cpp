@@ -169,8 +169,6 @@ CPU_TEST(PathResolving_resolvePath)
             return true;
         if (canonical == std::filesystem::weakly_canonical(D_DRIVE "/Project/Media/cornellbox.obj"))
             return true;
-        if (canonical == std::filesystem::weakly_canonical(D_DRIVE "/Project/Geometry/cornellbox.usd"))
-            return true;
         if (canonical == std::filesystem::weakly_canonical(E_DRIVE "/Textures/checkers.exr"))
             return true;
         if (canonical == std::filesystem::weakly_canonical(D_DRIVE "/Project/Media/test.txt"))
@@ -203,12 +201,6 @@ CPU_TEST(PathResolving_resolvePath)
     EXPECT(result.empty());
 
     result = resolvePath(searchPaths, cwd, "./test.txt", fileChecker);
-    EXPECT(result.empty());
-
-    result = resolvePath(searchPaths, cwd, "./cornellbox.usd", fileChecker);
-    EXPECT_EQ(result, std::filesystem::weakly_canonical(D_DRIVE "/Project/Geometry/cornellbox.usd"));
-
-    result = resolvePath(searchPaths, cwd, "cornellbox.usd", fileChecker);
     EXPECT(result.empty());
 }
 

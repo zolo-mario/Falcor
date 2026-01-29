@@ -42,14 +42,6 @@
     <dependency name="nvtt" linkPath="external/packman/nvtt">
         <package name="nvtt" version="3.1.6-${platform}" platforms="windows-x86_64 linux-x86_64" />
     </dependency>
-    <dependency name="nv-usd-release" linkPath="external/packman/nv-usd-release">
-        <package name="nv-usd" version="22.11.nv.0.2.424.27f22922-win64_nopy_release-dev_omniverse" platforms="windows-x86_64" />
-        <package name="nv-usd" version="22.11.nv.0.2.424.27f22922-linux64_nopy-centos_release-dev_omniverse" platforms="linux-x86_64" />
-    </dependency>
-    <dependency name="nv-usd-debug" linkPath="external/packman/nv-usd-debug">
-        <package name="nv-usd" version="22.11.nv.0.2.424.27f22922-win64_nopy_debug-dev_omniverse" platforms="windows-x86_64" />
-        <package name="nv-usd" version="22.11.nv.0.2.424.27f22922-linux64_nopy-centos_debug-dev_omniverse" platforms="linux-x86_64" />
-    </dependency>
     <dependency name="rtxdi" linkPath="external/packman/rtxdi">
         <package name="rtxdi" version="1.3.0-falcor" platforms="windows-x86_64 linux-x86_64" />
     </dependency>

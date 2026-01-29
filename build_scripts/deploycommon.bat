@@ -98,18 +98,7 @@ if exist %NanoVDBDir% (
     copy /y %NanoVDBDir%\include\nanovdb\PNanoVDB.h %NanoVDBTargetDir% >nul
 )
 
-rem Copy USD files, making sure not to overwrite dlls provided by other components, or dlls that we don't need.
-if %IsDebug% EQU 0 (
-    robocopy %ExtDir%\nv-usd-release\lib %OutDir% *.dll /r:0 /XF Alembic.dll dds.dll nv_freeimage.dll python*.dll hdf5*.dll tbb*.dll >nul
-    robocopy %ExtDir%\nv-usd-release\lib\usd %OutDir%\usd /E /r:0 >nul
-    robocopy %ExtDir%\nv-usd-release\lib\python\pxr %OutDir%\pythondist\Lib\pxr /E /r:0 >nul
-) else (
-    robocopy %ExtDir%\nv-usd-debug\lib %OutDir% *.dll /r:0 /XF Alembic.dll dds.dll nv_freeimage.dll python*.dll hdf5*.dll tbb*.dll >nul
-    robocopy %ExtDir%\nv-usd-debug\lib\usd %OutDir%\usd /E /r:0 >nul
-    robocopy %ExtDir%\nv-usd-debug\lib\python\pxr %OutDir%\pythondist\Lib\pxr /E /r:0 >nul
-)
-
-rem Copy MDL libs after USD to overwrite older versions included in USD distribution
+rem Copy MDL libs
 set MDLDir=%ExtDir%\mdl-sdk
 if exist %MDLDir% (
     robocopy %MDLDir%\nt-x86-64\lib %OutDir% *.dll /r:0 >nul

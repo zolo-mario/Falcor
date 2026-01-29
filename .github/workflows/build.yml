@@ -25,7 +25,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          sdk: 10.0.19041.0
+          # sdk: 10.0.19041.0
       - name: Configure
         run: setup_vs2022.bat
         shell: cmd
