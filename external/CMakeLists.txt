@@ -48,6 +48,14 @@ add_subdirectory(pybind11)
 # vulkan-headers
 add_subdirectory(vulkan-headers)
 
+# meshoptimizer
+message(STATUS "Configure meshoptimizer")
+add_subdirectory(meshoptimizer)
+set_target_properties(meshoptimizer PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    FOLDER "Libraries"
+)
+
 
 # -----------------------------------------------------------------------------
 # Dependencies in local files
