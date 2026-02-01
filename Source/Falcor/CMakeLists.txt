@@ -153,19 +153,6 @@ target_sources(Falcor PRIVATE
     Core/State/GraphicsState.h
     Core/State/StateGraph.h
 
-    DiffRendering/AggregateGradients.cs.slang
-    DiffRendering/DiffDebugParams.slang
-    DiffRendering/DiffMaterialData.slang
-    DiffRendering/DiffSceneIO.slang
-    DiffRendering/DiffSceneQuery.slang
-    DiffRendering/GradientIOWrapper.slang
-    DiffRendering/InverseOptimizationParams.slang
-    DiffRendering/SceneGradientInfo.slang
-    DiffRendering/SceneGradients.cpp
-    DiffRendering/SceneGradients.h
-    DiffRendering/SceneGradients.slang
-    DiffRendering/SharedTypes.slang
-
     RenderGraph/RenderGraph.cpp
     RenderGraph/RenderGraph.h
     RenderGraph/RenderGraphCompiler.cpp

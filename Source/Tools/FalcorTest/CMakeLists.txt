@@ -41,12 +41,6 @@ target_sources(FalcorTest PRIVATE
 
     Tests/DebugPasses/InvalidPixelDetectionTests.cpp
 
-    Tests/DiffRendering/SceneGradientsTest.cpp
-    Tests/DiffRendering/SceneGradientsTest.cs.slang
-
-    Tests/DiffRendering/Material/DiffMaterialTests.cpp
-    Tests/DiffRendering/Material/DiffMaterialTests.cs.slang
-
     Tests/Platform/LockFileTests.cpp
     Tests/Platform/MemoryMappedFileTests.cpp
     Tests/Platform/MonitorInfoTests.cpp
