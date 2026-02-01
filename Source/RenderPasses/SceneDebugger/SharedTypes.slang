@@ -16,6 +16,7 @@ enum class SceneDebuggerMode : uint32_t
     PrimitiveID,
     InstancedGeometry,
     MaterialType,
+    MeshletID,
     // Shading data
     FaceNormal,
     ShadingNormal,
@@ -42,6 +43,7 @@ FALCOR_ENUM_INFO(
         { SceneDebuggerMode::PrimitiveID, "PrimitiveID" },
         { SceneDebuggerMode::InstancedGeometry, "InstancedGeometry" },
         { SceneDebuggerMode::MaterialType, "MaterialType" },
+        { SceneDebuggerMode::MeshletID, "MeshletID" },
         // Shading data
         { SceneDebuggerMode::FaceNormal, "FaceNormal" },
         { SceneDebuggerMode::ShadingNormal, "ShadingNormal" },
@@ -142,6 +144,25 @@ enum class InstanceInfoFlags : uint32_t
 struct InstanceInfo
 {
     uint flags = 0; ///< Flags as a combination of 'InstanceInfoFlags' flags.
+};
+
+// Meshlet data structures
+struct GpuMeshlet
+{
+    uint vertexOffset;
+    uint triangleOffset;
+    uint vertexCount;
+    uint triangleCount;
+    float3 boundCenter;
+    float boundRadius;
+};
+
+struct MeshletData
+{
+    uint meshletCount;
+    uint totalTriangles;
+    uint originalTriangleCount;
+    uint _pad0;
 };
 
 END_NAMESPACE_FALCOR

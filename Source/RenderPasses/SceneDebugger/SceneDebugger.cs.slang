@@ -24,6 +24,14 @@ struct SceneDebugger
     StructuredBuffer<InstanceInfo> instanceInfo;
     Texture2D<PackedHitInfo> vbuffer;
 
+    // Meshlet buffers
+    StructuredBuffer<MeshletData> meshletData;
+    StructuredBuffer<GpuMeshlet> meshlets;
+    StructuredBuffer<uint> meshletVertices;
+    StructuredBuffer<uint> meshletTriangles;
+    StructuredBuffer<float3> meshletGlobalPositions;
+    StructuredBuffer<uint> triangleToMeshlet;
+
     RWTexture2D<float4> output;
     RWStructuredBuffer<PixelData> pixelData;
 
@@ -114,6 +122,14 @@ struct SceneDebugger
     {
         uint h = jenkinsHash(value);
         return (uint3(h, h >> 8, h >> 16) & 0xff) / 255.f;
+    }
+
+    // Generate unique color per meshlet using golden ratio HSV
+    float3 meshletIdToColor(uint id)
+    {
+        float hue = frac(float(id) * 0.618033988749895);
+        float3 rgb = saturate(abs(fmod(hue * 6.0 + float3(0, 4, 2), 6.0) - 3.0) - 1.0);
+        return lerp(float3(1, 1, 1), rgb, 0.7) * 0.9;
     }
 
     float3 handleHit(const uint2 pixel, const float3 orig, const float3 dir, const HitInfo hit)
@@ -258,6 +274,36 @@ struct SceneDebugger
         }
         case SceneDebuggerMode::MaterialType:
             return pseudocolor((uint)sd.mtl.getMaterialType()) * flatShaded;
+        case SceneDebuggerMode::MeshletID:
+        {
+            // Only works for triangle hits on the first mesh (geometryID == 0)
+            if (hit.getType() == HitType::Triangle && geometryID == 0)
+            {
+                // Debug: check if primitiveID is in valid range
+                uint originalTriCount = meshletData[0].originalTriangleCount;
+                if (primitiveID >= originalTriCount)
+                {
+                    return float3(1, 0, 0) * flatShaded;  // Red = out of bounds
+                }
+
+                // Get meshlet ID from original triangle ID
+                uint meshletID = triangleToMeshlet[primitiveID];
+
+                // Debug: check if meshletID is valid
+                uint meshletCount = meshletData[0].meshletCount;
+                if (meshletID >= meshletCount)
+                {
+                    return float3(1, 0, 1) * flatShaded;  // Magenta = invalid meshletID
+                }
+
+                return meshletIdToColor(meshletID) * flatShaded;
+            }
+            else
+            {
+                // For non-triangle geometry or other meshes, return gray
+                return float3(flatShaded);
+            }
+        }
         // Shading data
         case SceneDebuggerMode::FaceNormal:
             return remapVector(sd.faceN);

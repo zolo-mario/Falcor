@@ -4,6 +4,7 @@
 #include "Utils/Debug/PixelDebug.h"
 #include "Scene/HitInfoType.slang"
 #include "SharedTypes.slang"
+#include <meshoptimizer.h>
 
 
 using namespace Falcor;
@@ -38,6 +39,19 @@ public:
 private:
     void renderPixelDataUI(Gui::Widgets& widget);
     void initInstanceInfo();
+    void buildMeshlets();
+    void createMeshletBuffers(const std::vector<uint32_t>& triangleToMeshlet, uint32_t totalTriangles);
+
+    // Meshlet build result from meshoptimizer
+    struct MeshletBuildResult
+    {
+        std::vector<meshopt_Meshlet> meshlets;
+        std::vector<uint32_t> meshletVertices;
+        std::vector<uint8_t> meshletTriangles;
+        std::vector<float4> meshletBounds;
+        std::vector<float3> remappedPositions;
+        size_t remappedVertexCount = 0;
+    };
 
     // Internal state
 
@@ -59,4 +73,13 @@ private:
     ref<Buffer> mpInstanceInfo;
     bool mPixelDataAvailable = false;
     bool mVBufferAvailable = false;
+
+    // Meshlet data
+    MeshletBuildResult mMeshletBuildResult;
+    ref<Buffer> mpMeshletBuffer;
+    ref<Buffer> mpMeshletVertices;
+    ref<Buffer> mpMeshletTriangles;
+    ref<Buffer> mpMeshletGlobalPositions;
+    ref<Buffer> mpMeshletData;
+    ref<Buffer> mpTriangleToMeshlet; // Maps triangle ID to meshlet ID
 };

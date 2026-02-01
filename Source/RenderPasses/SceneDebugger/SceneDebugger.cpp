@@ -2,6 +2,7 @@
 
 
 #include <sstream>
+#include <unordered_map>
 
 namespace
 {
@@ -36,6 +37,8 @@ std::string getModeDesc(SceneDebuggerMode mode)
                "Red = non-instanced geometry";
     case SceneDebuggerMode::MaterialType:
         return "Material type in pseudocolor";
+    case SceneDebuggerMode::MeshletID:
+        return "Meshlet ID in pseudocolor";
     // Shading data
     case SceneDebuggerMode::FaceNormal:
         return "Face normal in RGB color";
@@ -177,6 +180,9 @@ void SceneDebugger::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
         // Create instance metadata.
         initInstanceInfo();
 
+        // Build meshlets for the first mesh
+        buildMeshlets();
+
         // Bind variables.
         auto var = mpDebugPass->getRootVar()["CB"]["gSceneDebugger"];
         if (!mpPixelData)
@@ -195,6 +201,12 @@ void SceneDebugger::setScene(RenderContext* pRenderContext, const ref<Scene>& pS
         var["pixelData"] = mpPixelData;
         var["meshToBlasID"] = mpMeshToBlasID;
         var["instanceInfo"] = mpInstanceInfo;
+        var["meshletData"] = mpMeshletData;
+        var["meshlets"] = mpMeshletBuffer;
+        var["meshletVertices"] = mpMeshletVertices;
+        var["meshletTriangles"] = mpMeshletTriangles;
+        var["meshletGlobalPositions"] = mpMeshletGlobalPositions;
+        var["triangleToMeshlet"] = mpTriangleToMeshlet;
     }
 }
 
@@ -269,6 +281,16 @@ void SceneDebugger::renderUI(Gui::Widgets& widget)
     {
         widget.dropdown("BSDF property", reinterpret_cast<SceneDebuggerBSDFProperty&>(mParams.bsdfProperty));
         widget.var("BSDF index", mParams.bsdfIndex, 0u, 15u, 1u);
+    }
+
+    if (mParams.mode == (uint32_t)SceneDebuggerMode::MeshletID)
+    {
+        widget.text("Meshlet Statistics:");
+        widget.text("Meshlet count: " + std::to_string(mMeshletBuildResult.meshlets.size()));
+        uint32_t totalTriangles = 0;
+        for (const auto& m : mMeshletBuildResult.meshlets)
+            totalTriangles += m.triangle_count;
+        widget.text("Total triangles: " + std::to_string(totalTriangles));
     }
 
     widget.checkbox("Clamp to [0,1]", mParams.clamp);
@@ -563,6 +585,345 @@ void SceneDebugger::initInstanceInfo()
         ResourceBindFlags::ShaderResource,
         MemoryType::DeviceLocal,
         instanceInfo.data(),
+        false
+    );
+}
+
+void SceneDebugger::buildMeshlets()
+{
+    // Clear previous meshlet data
+    mpMeshletBuffer = nullptr;
+    mpMeshletVertices = nullptr;
+    mpMeshletTriangles = nullptr;
+    mpMeshletGlobalPositions = nullptr;
+    mpMeshletData = nullptr;
+    mpTriangleToMeshlet = nullptr;
+    mMeshletBuildResult = MeshletBuildResult();
+
+    if (!mpScene || mpScene->getMeshCount() == 0)
+        return;
+
+    // Extract mesh data from the first mesh
+    const auto& meshDesc = mpScene->getMesh(MeshID{0});
+    uint32_t vertexCount = meshDesc.vertexCount;
+    uint32_t triangleCount = meshDesc.getTriangleCount();
+
+    logInfo("Building meshlets for mesh with {} vertices and {} triangles", vertexCount, triangleCount);
+
+    // Create output buffers for mesh data
+    std::map<std::string, ref<Buffer>> buffers;
+    buffers["triangleIndices"] = mpDevice->createStructuredBuffer(
+        sizeof(uint3),
+        triangleCount,
+        ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        nullptr,
+        false
+    );
+    buffers["positions"] = mpDevice->createStructuredBuffer(
+        sizeof(float3),
+        vertexCount,
+        ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        nullptr,
+        false
+    );
+    buffers["texcrds"] = mpDevice->createStructuredBuffer(
+        sizeof(float3),
+        vertexCount,
+        ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+        MemoryType::DeviceLocal,
+        nullptr,
+        false
+    );
+
+    // Extract mesh data via compute shader
+    mpScene->getMeshVerticesAndIndices(MeshID{0}, buffers);
+
+    // Read back data from GPU to CPU
+    std::vector<uint3> indices(triangleCount);
+    std::vector<float3> positions(vertexCount);
+
+    buffers["triangleIndices"]->getBlob(indices.data(), 0, triangleCount * sizeof(uint3));
+    buffers["positions"]->getBlob(positions.data(), 0, vertexCount * sizeof(float3));
+
+    // Flatten indices to uint32 array
+    std::vector<uint32_t> flatIndices(triangleCount * 3);
+    for (uint32_t i = 0; i < triangleCount; i++)
+    {
+        flatIndices[i * 3 + 0] = indices[i].x;
+        flatIndices[i * 3 + 1] = indices[i].y;
+        flatIndices[i * 3 + 2] = indices[i].z;
+    }
+
+    // Generate vertex remap for optimization
+    uint32_t indexCount = (uint32_t)flatIndices.size();
+    std::vector<uint32_t> remap(indexCount);
+    size_t vertex_count = meshopt_generateVertexRemap(
+        remap.data(),
+        flatIndices.data(),
+        indexCount,
+        positions.data(),
+        vertexCount,
+        sizeof(float3)
+    );
+
+    // Remap indices
+    std::vector<uint32_t> remappedIndices(indexCount);
+    meshopt_remapIndexBuffer(remappedIndices.data(), flatIndices.data(), indexCount, remap.data());
+
+    // Remap vertices - save to member variable
+    mMeshletBuildResult.remappedPositions.resize(vertex_count);
+    meshopt_remapVertexBuffer(
+        mMeshletBuildResult.remappedPositions.data(),
+        positions.data(),
+        vertexCount,
+        sizeof(float3),
+        remap.data()
+    );
+    mMeshletBuildResult.remappedVertexCount = vertex_count;
+
+    logInfo("Vertex remap: {} vertices -> {} vertices", vertexCount, vertex_count);
+
+    // Build meshlets using meshoptimizer with recommended parameters
+    const size_t maxVertices = 64;    // Match GPU workgroup size
+    const size_t maxTriangles = 124;  // 124 * 3 = 372 < 384 (hardware limit)
+    const float coneWeight = 0.5f;    // Enable normal cone optimization
+
+    size_t maxMeshlets = meshopt_buildMeshletsBound(remappedIndices.size(), maxVertices, maxTriangles);
+    mMeshletBuildResult.meshlets.resize(maxMeshlets);
+    mMeshletBuildResult.meshletVertices.resize(maxMeshlets * maxVertices);
+    mMeshletBuildResult.meshletTriangles.resize(maxMeshlets * maxTriangles * 3);
+
+    size_t meshletCount = meshopt_buildMeshlets(
+        mMeshletBuildResult.meshlets.data(),
+        mMeshletBuildResult.meshletVertices.data(),
+        mMeshletBuildResult.meshletTriangles.data(),
+        remappedIndices.data(),
+        remappedIndices.size(),
+        reinterpret_cast<const float*>(mMeshletBuildResult.remappedPositions.data()),
+        vertex_count,
+        sizeof(float3),
+        maxVertices,
+        maxTriangles,
+        coneWeight
+    );
+
+    // Resize to actual count
+    mMeshletBuildResult.meshlets.resize(meshletCount);
+    const meshopt_Meshlet& lastMeshlet = mMeshletBuildResult.meshlets.back();
+    mMeshletBuildResult.meshletVertices.resize(lastMeshlet.vertex_offset + lastMeshlet.vertex_count);
+    mMeshletBuildResult.meshletTriangles.resize(lastMeshlet.triangle_offset + ((lastMeshlet.triangle_count * 3 + 3) & ~3));
+
+    // Compute bounding spheres
+    mMeshletBuildResult.meshletBounds.resize(meshletCount);
+    for (size_t i = 0; i < meshletCount; i++)
+    {
+        const meshopt_Meshlet& m = mMeshletBuildResult.meshlets[i];
+        meshopt_Bounds bounds = meshopt_computeMeshletBounds(
+            &mMeshletBuildResult.meshletVertices[m.vertex_offset],
+            &mMeshletBuildResult.meshletTriangles[m.triangle_offset],
+            m.triangle_count,
+            reinterpret_cast<const float*>(mMeshletBuildResult.remappedPositions.data()),
+            vertex_count,
+            sizeof(float3)
+        );
+
+        mMeshletBuildResult.meshletBounds[i] = float4(bounds.center[0], bounds.center[1], bounds.center[2], bounds.radius);
+    }
+
+    // Calculate total triangles
+    uint32_t totalTriangles = 0;
+    for (const auto& m : mMeshletBuildResult.meshlets)
+    {
+        totalTriangles += m.triangle_count;
+    }
+
+    logInfo("Built {} meshlets with {} total triangles", meshletCount, totalTriangles);
+
+    // Build mapping from original triangle ID to meshlet ID
+    // This is critical because shader uses primitiveID (original scene order)
+
+    // Helper function to create unique triangle key (order-independent)
+    auto makeTriangleKey = [](uint32_t v0, uint32_t v1, uint32_t v2) -> uint64_t {
+        if (v0 > v1) std::swap(v0, v1);
+        if (v1 > v2) std::swap(v1, v2);
+        if (v0 > v1) std::swap(v0, v1);
+        return ((uint64_t)v0 << 42) | ((uint64_t)v1 << 21) | (uint64_t)v2;
+    };
+
+    // Build hash map of original triangles (using remapped indices)
+    std::unordered_map<uint64_t, uint32_t> originalTriangleMap;
+    for (uint32_t origTri = 0; origTri < triangleCount; origTri++)
+    {
+        uint32_t v0 = remappedIndices[origTri * 3 + 0];
+        uint32_t v1 = remappedIndices[origTri * 3 + 1];
+        uint32_t v2 = remappedIndices[origTri * 3 + 2];
+        uint64_t key = makeTriangleKey(v0, v1, v2);
+        originalTriangleMap[key] = origTri;
+    }
+
+    // Create mapping: original triangle ID -> meshlet ID
+    std::vector<uint32_t> originalTriToMeshlet(triangleCount, 0xFFFFFFFF);
+
+    for (size_t meshletIdx = 0; meshletIdx < meshletCount; meshletIdx++)
+    {
+        const auto& m = mMeshletBuildResult.meshlets[meshletIdx];
+
+        for (uint32_t t = 0; t < m.triangle_count; t++)
+        {
+            // Get local vertex indices from meshlet triangle data
+            uint32_t triOffset = m.triangle_offset + t * 3;
+            uint8_t lv0 = mMeshletBuildResult.meshletTriangles[triOffset + 0];
+            uint8_t lv1 = mMeshletBuildResult.meshletTriangles[triOffset + 1];
+            uint8_t lv2 = mMeshletBuildResult.meshletTriangles[triOffset + 2];
+
+            // Convert to global vertex indices
+            uint32_t gv0 = mMeshletBuildResult.meshletVertices[m.vertex_offset + lv0];
+            uint32_t gv1 = mMeshletBuildResult.meshletVertices[m.vertex_offset + lv1];
+            uint32_t gv2 = mMeshletBuildResult.meshletVertices[m.vertex_offset + lv2];
+
+            // Find corresponding original triangle
+            uint64_t key = makeTriangleKey(gv0, gv1, gv2);
+            auto it = originalTriangleMap.find(key);
+            if (it != originalTriangleMap.end())
+            {
+                originalTriToMeshlet[it->second] = (uint32_t)meshletIdx;
+            }
+        }
+    }
+
+    // Verify mapping completeness
+    uint32_t unmappedCount = 0;
+    for (uint32_t i = 0; i < triangleCount; i++)
+    {
+        if (originalTriToMeshlet[i] == 0xFFFFFFFF)
+        {
+            unmappedCount++;
+            originalTriToMeshlet[i] = 0; // Set default to avoid out-of-bounds
+        }
+    }
+    if (unmappedCount > 0)
+    {
+        logWarning("Meshlet mapping: {} triangles could not be mapped", unmappedCount);
+    }
+    else
+    {
+        logInfo("Meshlet mapping: all {} triangles successfully mapped", triangleCount);
+    }
+
+    // Create GPU buffers with correct mapping
+    createMeshletBuffers(originalTriToMeshlet, totalTriangles);
+}
+
+void SceneDebugger::createMeshletBuffers(const std::vector<uint32_t>& triangleToMeshlet, uint32_t totalTriangles)
+{
+    if (mMeshletBuildResult.meshlets.empty())
+    {
+        // Create empty buffers
+        MeshletData meshletData = {};
+        mpMeshletData = mpDevice->createStructuredBuffer(
+            sizeof(MeshletData),
+            1,
+            ResourceBindFlags::ShaderResource,
+            MemoryType::DeviceLocal,
+            &meshletData,
+            false
+        );
+        return;
+    }
+
+    // Create GPU meshlet buffer
+    std::vector<GpuMeshlet> gpuMeshlets(mMeshletBuildResult.meshlets.size());
+    for (size_t i = 0; i < mMeshletBuildResult.meshlets.size(); i++)
+    {
+        const meshopt_Meshlet& m = mMeshletBuildResult.meshlets[i];
+        const float4& bounds = mMeshletBuildResult.meshletBounds[i];
+
+        gpuMeshlets[i].vertexOffset = m.vertex_offset;
+        gpuMeshlets[i].triangleOffset = m.triangle_offset;
+        gpuMeshlets[i].vertexCount = m.vertex_count;
+        gpuMeshlets[i].triangleCount = m.triangle_count;
+        gpuMeshlets[i].boundCenter = float3(bounds.x, bounds.y, bounds.z);
+        gpuMeshlets[i].boundRadius = bounds.w;
+    }
+
+    mpMeshletBuffer = mpDevice->createStructuredBuffer(
+        sizeof(GpuMeshlet),
+        (uint32_t)gpuMeshlets.size(),
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        gpuMeshlets.data(),
+        false
+    );
+
+    // Create meshlet vertices buffer
+    mpMeshletVertices = mpDevice->createStructuredBuffer(
+        sizeof(uint32_t),
+        (uint32_t)mMeshletBuildResult.meshletVertices.size(),
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        mMeshletBuildResult.meshletVertices.data(),
+        false
+    );
+
+    // Pack uint8 triangle indices into uint32 buffer (4 indices per uint32)
+    size_t packedSize = (mMeshletBuildResult.meshletTriangles.size() + 3) / 4;
+    std::vector<uint32_t> packedTriangles(packedSize, 0);
+    for (size_t i = 0; i < mMeshletBuildResult.meshletTriangles.size(); i++)
+    {
+        uint32_t byteIndex = i % 4;
+        uint32_t uintIndex = i / 4;
+        packedTriangles[uintIndex] |= (uint32_t)mMeshletBuildResult.meshletTriangles[i] << (byteIndex * 8);
+    }
+
+    mpMeshletTriangles = mpDevice->createStructuredBuffer(
+        sizeof(uint32_t),
+        (uint32_t)packedTriangles.size(),
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        packedTriangles.data(),
+        false
+    );
+
+    // Use remapped positions directly - this is the critical fix!
+    mpMeshletGlobalPositions = mpDevice->createStructuredBuffer(
+        sizeof(float3),
+        (uint32_t)mMeshletBuildResult.remappedPositions.size(),
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        mMeshletBuildResult.remappedPositions.data(),
+        false
+    );
+
+    logInfo("Meshlet vertex buffer: {} vertices", mMeshletBuildResult.remappedPositions.size());
+
+    // Create triangle to meshlet mapping buffer
+    // Size is original triangle count (for primitiveID indexing in shader)
+    mpTriangleToMeshlet = mpDevice->createStructuredBuffer(
+        sizeof(uint32_t),
+        (uint32_t)triangleToMeshlet.size(),
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        triangleToMeshlet.data(),
+        false
+    );
+
+    logInfo("Triangle to meshlet mapping buffer: {} entries", triangleToMeshlet.size());
+
+    // Create meshlet metadata buffer
+    MeshletData meshletData;
+    meshletData.meshletCount = (uint32_t)mMeshletBuildResult.meshlets.size();
+    meshletData.totalTriangles = totalTriangles;
+    meshletData.originalTriangleCount = (uint32_t)triangleToMeshlet.size();
+    meshletData._pad0 = 0;
+
+    mpMeshletData = mpDevice->createStructuredBuffer(
+        sizeof(MeshletData),
+        1,
+        ResourceBindFlags::ShaderResource,
+        MemoryType::DeviceLocal,
+        &meshletData,
         false
     );
 }
