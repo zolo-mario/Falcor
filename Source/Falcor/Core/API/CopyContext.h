@@ -9,11 +9,6 @@
 #include <string>
 #include <vector>
 
-#if FALCOR_HAS_CUDA
-struct CUstream_st;
-typedef CUstream_st* cudaStream_t;
-#endif
-
 namespace Falcor
 {
 class Texture;
@@ -86,24 +81,6 @@ public:
      * @param value The value to wait for. If Fence::kAuto, wait for the last signaled value.
      */
     void wait(Fence* pFence, uint64_t value = Fence::kAuto);
-
-#if FALCOR_HAS_CUDA
-    /**
-     * Wait for the CUDA stream to finish execution.
-     * Queues a device-side wait on the command queue and adds an async fence
-     * signal on the CUDA stream. Returns immediately.
-     * @param stream The CUDA stream to wait for.
-     */
-    void waitForCuda(cudaStream_t stream = 0);
-
-    /**
-     * Wait for the Falcor command queue to finish execution.
-     * Queues a device-side signal on the command queue and adds an async fence
-     * wait on the CUDA stream. Returns immediately.
-     * @param stream The CUDA stream to wait on.
-     */
-    void waitForFalcor(cudaStream_t stream = 0);
-#endif
 
     /**
      * Insert a resource barrier

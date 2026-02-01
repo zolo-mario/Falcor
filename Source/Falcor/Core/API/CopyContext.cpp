@@ -15,10 +15,6 @@
 #include "Utils/Logger.h"
 #include "Utils/Math/Common.h"
 
-#if FALCOR_HAS_CUDA
-#include "Utils/CudaUtils.h"
-#endif
-
 namespace Falcor
 {
 CopyContext::CopyContext(Device* pDevice, gfx::ICommandQueue* pQueue) : mpDevice(pDevice)
@@ -78,37 +74,6 @@ void CopyContext::wait(Fence* pFence, uint64_t value)
     uint64_t waitValues[] = {waitValue};
     FALCOR_GFX_CALL(mpLowLevelData->getGfxCommandQueue()->waitForFenceValuesOnDevice(1, fences, waitValues));
 }
-
-#if FALCOR_HAS_CUDA
-void CopyContext::waitForCuda(cudaStream_t stream)
-{
-    if (mpDevice->getType() == Device::Type::D3D12)
-    {
-        mpLowLevelData->getCudaSemaphore()->waitForCuda(this, stream);
-    }
-    else
-    {
-        // In the past, we used to wait for all CUDA work to be done.
-        // Since GFX with Vulkan doesn't support shared fences yet, we do the same here.
-        cuda_utils::deviceSynchronize();
-    }
-}
-
-void CopyContext::waitForFalcor(cudaStream_t stream)
-{
-    if (mpDevice->getType() == Device::Type::D3D12)
-    {
-        mpLowLevelData->submitCommandBuffer();
-        mpLowLevelData->getCudaSemaphore()->waitForFalcor(this, stream);
-    }
-    else
-    {
-        // In the past, we used to wait for all work on the command queue to be done.
-        // Since GFX with Vulkan doesn't support shared fences yet, we do the same here.
-        submit(true);
-    }
-}
-#endif
 
 CopyContext::ReadTextureTask::SharedPtr CopyContext::asyncReadTextureSubresource(const Texture* pTexture, uint32_t subresourceIndex)
 {

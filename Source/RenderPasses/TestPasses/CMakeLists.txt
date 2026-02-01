@@ -2,9 +2,6 @@ add_plugin(TestPasses)
 
 target_sources(TestPasses PRIVATE
     TestPasses.cpp
-    TestPyTorchPass.cpp
-    TestPyTorchPass.h
-    TestPyTorchPass.cs.slang
     TestRtProgram.cpp
     TestRtProgram.h
     TestRtProgram.rt.slang

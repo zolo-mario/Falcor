@@ -115,27 +115,9 @@ if(FALCOR_LINUX)
 endif()
 
 
+# CUDA - Disabled
 # -----------------------------------------------------------------------------
-# CUDA
-# -----------------------------------------------------------------------------
-
-
-# Set default CUDA architecture to 75 (Turing).
-# This can be overwritten for individual targets using the CUDA_ARCHITECTURE property.
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 75-virtual)
-endif()
-
-include(CheckLanguage)
-check_language(CUDA)
-if(CMAKE_CUDA_COMPILER)
-    message(STATUS "Enabling CUDA support.")
-    enable_language(CUDA)
-    find_package(CUDAToolkit REQUIRED)
-    set(FALCOR_HAS_CUDA ON)
-else()
-    set(FALCOR_HAS_CUDA OFF)
-endif()
+set(FALCOR_HAS_CUDA OFF)
 
 # -----------------------------------------------------------------------------
 # Python

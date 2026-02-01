@@ -771,14 +771,6 @@ if(FALCOR_HAS_D3D12)
     )
 endif()
 
-if(FALCOR_HAS_CUDA)
-    target_sources(Falcor PRIVATE
-        Utils/CudaRuntime.h
-        Utils/CudaUtils.cpp
-        Utils/CudaUtils.h
-    )
-endif()
-
 target_source_group(Falcor "/")
 
 # ImGui source files
@@ -939,7 +931,6 @@ target_compile_definitions(Falcor
         FALCOR_HAS_VULKAN=$<BOOL:${FALCOR_HAS_VULKAN}>
         FALCOR_HAS_AFTERMATH=$<BOOL:${FALCOR_HAS_AFTERMATH}>
         FALCOR_HAS_NVAPI=$<BOOL:${FALCOR_HAS_NVAPI}>
-        FALCOR_HAS_CUDA=$<BOOL:${FALCOR_HAS_CUDA}>
         FALCOR_HAS_D3D12_AGILITY_SDK=$<BOOL:${FALCOR_HAS_D3D12_AGILITY_SDK}>
         # TODO: RTXDI is always available, we might want to remove the feature flag.
         FALCOR_HAS_RTXDI=1
@@ -967,8 +958,6 @@ target_link_libraries(Falcor
         nanovdb
         external_includes
         rtxdi
-        $<$<BOOL:${FALCOR_HAS_CUDA}>:CUDA::cuda_driver>
-        $<$<BOOL:${FALCOR_HAS_CUDA}>:CUDA::cudart_static>
     PRIVATE
         git_version
         FreeImage assimp OpenEXR OpenVDB lz4 zlib pugixml opensubdiv

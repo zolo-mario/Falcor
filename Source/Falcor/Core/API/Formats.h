@@ -44,7 +44,7 @@ enum class ResourceBindFlags : uint32_t
     RenderTarget = 0x40,    ///< The resource will be bound as a render-target
     DepthStencil = 0x80,    ///< The resource will be bound as a depth-stencil buffer
     IndirectArg = 0x100,    ///< The resource will be bound as an indirect argument buffer
-    Shared = 0x200,         ///< The resource will be shared with a different adapter. Mostly useful for sharing resoures with CUDA
+    Shared = 0x200,         ///< The resource will be shared with a different adapter
     AccelerationStructure = 0x80000000, ///< The resource will be bound as an acceleration structure
 
     AllColorViews = ShaderResource | UnorderedAccess | RenderTarget,

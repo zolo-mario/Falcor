@@ -31,12 +31,7 @@ robocopy %SlangDir%\bin %OutDir% *.dll /r:0 >nul
 robocopy %ExtDir%\pix\bin\x64 %OutDir% WinPixEventRuntime.dll /r:0 >nul
 robocopy %ExtDir%\dxcompiler\bin\x64 %OutDir% dxil.dll /r:0 >nul
 robocopy %ExtDir%\dxcompiler\bin\x64 %OutDir% dxcompiler.dll /r:0 >nul
-robocopy %ExtDir%\nvtt\ %OutDir% cudart64_110.dll /r:0 >nul
 robocopy %ExtDir%\nvtt\ %OutDir% nvtt30106.dll /r:0 >nul
-robocopy %ExtDir%\cuda\bin\ %OutDir% cudart*.dll /r:0 >nul
-robocopy %ExtDir%\cuda\bin\ %OutDir% nvrtc*.dll /r:0 >nul
-robocopy %ExtDir%\cuda\bin\ %OutDir% cublas*.dll /r:0 >nul
-robocopy %ExtDir%\cuda\bin\ %OutDir% curand*.dll /r:0 >nul
 
 rem Copy Aftermath
 set AftermathDir=%ExtDir%\aftermath
