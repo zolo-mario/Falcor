@@ -764,7 +764,7 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
 
     // Set additional command line arguments.
     {
-        std::vector<const char*> args;
+        std::vector<const char*> args = { "-Wno-30081", "-Wno-15602", "-Wno-30056", "-Wno-41203", "-Wno-41016" };
         for (const auto& arg : mGlobalCompilerArguments)
             args.push_back(arg.c_str());
         for (const auto& arg : program.mDesc.compilerArguments)
