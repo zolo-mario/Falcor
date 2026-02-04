@@ -924,6 +924,7 @@ target_compile_definitions(Falcor
         # Falcor feature flags.
         FALCOR_ENABLE_ASSERTS=$<BOOL:${FALCOR_ENABLE_ASSERTS_}>
         FALCOR_ENABLE_PROFILER=$<BOOL:${FALCOR_ENABLE_PROFILER}>
+        $<$<BOOL:${FALCOR_ENABLE_PROFILER}>:TRACY_ENABLE>
         FALCOR_HAS_D3D12=$<BOOL:${FALCOR_HAS_D3D12}>
         FALCOR_HAS_VULKAN=$<BOOL:${FALCOR_HAS_VULKAN}>
         FALCOR_HAS_AFTERMATH=$<BOOL:${FALCOR_HAS_AFTERMATH}>
@@ -955,6 +956,7 @@ target_link_libraries(Falcor
         nanovdb
         external_includes
         rtxdi
+        $<$<BOOL:${FALCOR_ENABLE_PROFILER}>:TracyClient>
     PRIVATE
         git_version
         FreeImage assimp OpenEXR OpenVDB lz4 zlib pugixml opensubdiv

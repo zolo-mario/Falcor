@@ -381,6 +381,10 @@ void Profiler::endFrame(RenderContext* pRenderContext)
             e->resetStats();
         mPendingReset = false;
     }
+
+#if FALCOR_ENABLE_PROFILER
+    FrameMark;
+#endif
 }
 
 void Profiler::resetStats()

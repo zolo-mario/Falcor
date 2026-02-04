@@ -9,6 +9,10 @@
 #include <unordered_map>
 #include <vector>
 
+#if FALCOR_ENABLE_PROFILER
+#include <tracy/Tracy.hpp>
+#endif
+
 namespace Falcor
 {
 class RenderContext;
@@ -276,8 +280,10 @@ private:
 
 #if FALCOR_ENABLE_PROFILER
 #define FALCOR_PROFILE(_pRenderContext, _name) \
+    ZoneScoped; \
     Falcor::ScopedProfilerEvent FALCOR_CONCAT_STRINGS(_profileEvent, __LINE__)(_pRenderContext, _name)
 #define FALCOR_PROFILE_CUSTOM(_pRenderContext, _name, _flags) \
+    ZoneScoped; \
     Falcor::ScopedProfilerEvent FALCOR_CONCAT_STRINGS(_profileEvent, __LINE__)(_pRenderContext, _name, _flags)
 #else
 #define FALCOR_PROFILE(_pRenderContext, _name)
