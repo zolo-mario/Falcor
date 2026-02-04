@@ -522,9 +522,6 @@ target_sources(Falcor PRIVATE
     Scene/Volume/GridVolume.slang
     Scene/Volume/GridVolumeData.slang
 
-    Testing/UnitTest.cpp
-    Testing/UnitTest.cs.slang
-    Testing/UnitTest.h
 
     Utils/AlignedAllocator.h
     Utils/Attributes.slang

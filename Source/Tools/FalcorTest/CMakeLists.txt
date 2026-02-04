@@ -3,6 +3,10 @@ add_falcor_executable(FalcorTest)
 target_sources(FalcorTest PRIVATE
     FalcorTest.cpp
 
+    Testing/UnitTest.cpp
+    Testing/UnitTest.cs.slang
+    Testing/UnitTest.h
+
     Tests/Core/AftermathTests.cpp
     Tests/Core/AftermathTests.cs.slang
     Tests/Core/AssetResolverTests.cpp
@@ -171,8 +175,9 @@ target_sources(FalcorTest PRIVATE
     Tests/Utils/VectorTests.cpp
 )
 
+target_include_directories(FalcorTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(FalcorTest PRIVATE args)
+target_link_libraries(FalcorTest PRIVATE args Falcor pugixml)
 
 target_copy_shaders(FalcorTest .)
 

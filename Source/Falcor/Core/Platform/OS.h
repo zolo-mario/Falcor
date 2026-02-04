@@ -13,7 +13,7 @@ namespace Falcor
 /**
  * Utility class to start/stop OS services.
  */
-class OSServices
+class FALCOR_API OSServices
 {
 public:
     static void start();

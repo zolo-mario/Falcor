@@ -68,7 +68,7 @@ struct RunOptions
     uint32_t repeat = 1;
 };
 
-FALCOR_API int32_t runTests(const RunOptions& options);
+/*FALCOR_API*/ int32_t runTests(const RunOptions& options);
 
 class CPUUnitTestContext;
 class GPUUnitTestContext;
@@ -89,10 +89,10 @@ struct Test
 };
 
 /// Enumerate all tests.
-FALCOR_API std::vector<Test> enumerateTests();
+/*FALCOR_API*/ std::vector<Test> enumerateTests();
 
 /// Filter tests by suite and case name.
-FALCOR_API std::vector<Test> filterTests(
+/*FALCOR_API*/ std::vector<Test> filterTests(
     std::vector<Test> tests,
     std::string testSuiteFilter,
     std::string testCaseFilter,
@@ -100,7 +100,7 @@ FALCOR_API std::vector<Test> filterTests(
     Device::Type deviceType
 );
 
-class FALCOR_API UnitTestContext
+class /*FALCOR_API*/ UnitTestContext
 {
 public:
     /**
@@ -123,10 +123,10 @@ private:
     std::vector<std::string> mFailureMessages;
 };
 
-class FALCOR_API CPUUnitTestContext : public UnitTestContext
+class /*FALCOR_API*/ CPUUnitTestContext : public UnitTestContext
 {};
 
-class FALCOR_API GPUUnitTestContext : public UnitTestContext
+class /*FALCOR_API*/ GPUUnitTestContext : public UnitTestContext
 {
 public:
     GPUUnitTestContext(ref<Device> pDevice) : mpDevice(pDevice) {}
@@ -322,8 +322,8 @@ void applyArgs(Options& options, Args&&... args)
     (applyArg(options, std::forward<Args>(args)), ...);
 }
 
-FALCOR_API void registerCPUTest(std::filesystem::path path, std::string name, unittest::Options options, CPUTestFunc func);
-FALCOR_API void registerGPUTest(std::filesystem::path path, std::string name, unittest::Options options, GPUTestFunc func);
+/*FALCOR_API*/ void registerCPUTest(std::filesystem::path path, std::string name, unittest::Options options, CPUTestFunc func);
+/*FALCOR_API*/ void registerGPUTest(std::filesystem::path path, std::string name, unittest::Options options, GPUTestFunc func);
 
 /**
  * StreamSink is a utility class used by the testing framework that either
