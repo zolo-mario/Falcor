@@ -11,6 +11,9 @@
 
 #if FALCOR_ENABLE_PROFILER
 #include <tracy/Tracy.hpp>
+#if FALCOR_HAS_D3D12
+#include <tracy/TracyD3D12.hpp>
+#endif
 #endif
 
 namespace Falcor
@@ -136,6 +139,10 @@ public:
      */
     Profiler(ref<Device> pDevice);
 
+    // Delete copy constructor and copy assignment operator (non-copyable due to unique_ptr members)
+    Profiler(const Profiler&) = delete;
+    Profiler& operator=(const Profiler&) = delete;
+
     const Device* getDevice() const { return mpDevice.get(); }
 
     /**
@@ -240,7 +247,7 @@ private:
 
     BreakableReference<Device> mpDevice;
 
-    bool mEnabled = false;
+    bool mEnabled = true;
     bool mPaused = false;
 
     std::unordered_map<std::string, std::shared_ptr<Event>> mEvents; ///< Events by name.
@@ -255,6 +262,11 @@ private:
 
     ref<Fence> mpFence;
     uint64_t mFenceValue = uint64_t(-1);
+
+#if FALCOR_ENABLE_PROFILER && FALCOR_HAS_D3D12
+    // Stack to manage nested Tracy D3D12 GPU zones
+    std::vector<std::unique_ptr<tracy::D3D12ZoneScope>> mTracyD3D12ZoneStack;
+#endif
 };
 
 FALCOR_ENUM_CLASS_OPERATORS(Profiler::Flags);
@@ -281,11 +293,27 @@ private:
 #if FALCOR_ENABLE_PROFILER
 #define FALCOR_PROFILE(_pRenderContext, _name) \
     ZoneScoped; \
+    { \
+        std::string __tracy_name_str = _name; \
+        ZoneName(__tracy_name_str.c_str(), __tracy_name_str.size()); \
+    } \
+    Falcor::ScopedProfilerEvent FALCOR_CONCAT_STRINGS(_profileEvent, __LINE__)(_pRenderContext, _name)
+#define FALCOR_PROFILE_DYNAMIC(_pRenderContext, _name) \
+    ZoneScoped; \
+    { \
+        const std::string& __tracy_name_ref = _name; \
+        ZoneName(__tracy_name_ref.c_str(), __tracy_name_ref.size()); \
+    } \
     Falcor::ScopedProfilerEvent FALCOR_CONCAT_STRINGS(_profileEvent, __LINE__)(_pRenderContext, _name)
 #define FALCOR_PROFILE_CUSTOM(_pRenderContext, _name, _flags) \
     ZoneScoped; \
+    { \
+        std::string __tracy_name_str = _name; \
+        ZoneName(__tracy_name_str.c_str(), __tracy_name_str.size()); \
+    } \
     Falcor::ScopedProfilerEvent FALCOR_CONCAT_STRINGS(_profileEvent, __LINE__)(_pRenderContext, _name, _flags)
 #else
 #define FALCOR_PROFILE(_pRenderContext, _name)
+#define FALCOR_PROFILE_DYNAMIC(_pRenderContext, _name)
 #define FALCOR_PROFILE_CUSTOM(_pRenderContext, _name, _flags)
 #endif

@@ -619,6 +619,15 @@ Device::Device(const Desc& desc) : mDesc(desc)
         mpD3D12GpuDescPool = D3D12DescriptorPool::create(this, poolDesc, mpFrameFence);
         poolDesc.setShaderVisible(false).setDescCount(ShaderResourceType::Rtv, 16 * 1024).setDescCount(ShaderResourceType::Dsv, 1024);
         mpD3D12CpuDescPool = D3D12DescriptorPool::create(this, poolDesc, mpFrameFence);
+
+#if FALCOR_ENABLE_PROFILER
+        // Initialize Tracy D3D12 GPU profiling context
+        ID3D12Device* pD3D12Device = getNativeHandle().as<ID3D12Device*>();
+        gfx::InteropHandle gfxNativeHandle = {};
+        FALCOR_GFX_CALL(mGfxCommandQueue->getNativeHandle(&gfxNativeHandle));
+        ID3D12CommandQueue* pD3D12Queue = reinterpret_cast<ID3D12CommandQueue*>(gfxNativeHandle.handleValue);
+        mTracyD3D12Ctx = TracyD3D12Context(pD3D12Device, pD3D12Queue);
+#endif
     }
 #endif // FALCOR_HAS_D3D12
 
@@ -677,6 +686,9 @@ Device::~Device()
     mpFrameFence.reset();
 
 #if FALCOR_HAS_D3D12
+#if FALCOR_ENABLE_PROFILER
+    TracyD3D12Destroy(mTracyD3D12Ctx);
+#endif
     mpD3D12CpuDescPool.reset();
     mpD3D12GpuDescPool.reset();
 #endif // FALCOR_HAS_D3D12

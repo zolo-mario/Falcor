@@ -12,6 +12,9 @@
 
 #if FALCOR_HAS_D3D12
 #include <guiddef.h>
+#if FALCOR_ENABLE_PROFILER
+#include <tracy/TracyD3D12.hpp>
+#endif
 #endif
 
 #include <array>
@@ -475,6 +478,11 @@ public:
     /// Return the GFX command queue.
     gfx::ICommandQueue* getGfxCommandQueue() const { return mGfxCommandQueue; }
 
+#if FALCOR_HAS_D3D12 && FALCOR_ENABLE_PROFILER
+    /// Return the Tracy D3D12 context for GPU profiling.
+    TracyD3D12Ctx getTracyD3D12Ctx() const { return mTracyD3D12Ctx; }
+#endif
+
     /**
      * Returns the native API handle:
      * - D3D12: ID3D12Device* (0)
@@ -650,6 +658,9 @@ private:
 #if FALCOR_HAS_D3D12
     ref<D3D12DescriptorPool> mpD3D12CpuDescPool;
     ref<D3D12DescriptorPool> mpD3D12GpuDescPool;
+#if FALCOR_ENABLE_PROFILER
+    TracyD3D12Ctx mTracyD3D12Ctx = nullptr;
+#endif
 #endif
     ref<Fence> mpFrameFence;
 

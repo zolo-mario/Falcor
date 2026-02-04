@@ -1,6 +1,8 @@
 #include "Profiler.h"
 #include "Core/API/Device.h"
 #include "Core/API/GpuTimer.h"
+#include "Core/API/LowLevelContextData.h"
+#include "Core/API/NativeHandleTraits.h"
 #include "Utils/Logger.h"
 #include "Utils/Scripting/ScriptBindings.h"
 
@@ -312,6 +314,38 @@ void Profiler::startEvent(RenderContext* pRenderContext, const std::string& name
         {
             mCurrentFrameEvents.push_back(pEvent);
         }
+
+#if FALCOR_ENABLE_PROFILER && FALCOR_HAS_D3D12
+        // Create Tracy D3D12 GPU zone if on D3D12
+        if (!mPaused && mpDevice->getType() == Device::Type::D3D12)
+        {
+            TracyD3D12Ctx tracyCtx = mpDevice->getTracyD3D12Ctx();
+            if (tracyCtx && pRenderContext)
+            {
+                // Get the D3D12 command list from the render context
+                ID3D12GraphicsCommandList* pCommandList =
+                    pRenderContext->getLowLevelData()->getCommandBufferNativeHandle().as<ID3D12GraphicsCommandList*>();
+
+                if (pCommandList)
+                {
+                    // Create a Tracy D3D12 zone scope and push it onto the stack
+                    // Constructor signature: D3D12ZoneScope(ctx, line, file, fileLen, function, functionLen, name, nameLen, cmdList, active)
+                    mTracyD3D12ZoneStack.push_back(std::make_unique<tracy::D3D12ZoneScope>(
+                        tracyCtx,
+                        TracyLine,
+                        TracyFile,
+                        strlen(TracyFile),
+                        TracyFunction,
+                        strlen(TracyFunction),
+                        name.c_str(),
+                        name.size(),
+                        pCommandList,
+                        true
+                    ));
+                }
+            }
+        }
+#endif
     }
     if (is_set(flags, Flags::Pix))
     {
@@ -334,6 +368,14 @@ void Profiler::endEvent(RenderContext* pRenderContext, const std::string& name, 
             pEvent->end(mFrameIndex);
 
         mCurrentEventName.erase(mCurrentEventName.find_last_of("/"));
+
+#if FALCOR_ENABLE_PROFILER && FALCOR_HAS_D3D12
+        // Pop and destroy the Tracy D3D12 zone from the stack
+        if (!mPaused && !mTracyD3D12ZoneStack.empty())
+        {
+            mTracyD3D12ZoneStack.pop_back();
+        }
+#endif
     }
 
     if (is_set(flags, Flags::Pix))
@@ -384,6 +426,18 @@ void Profiler::endFrame(RenderContext* pRenderContext)
 
 #if FALCOR_ENABLE_PROFILER
     FrameMark;
+#if FALCOR_HAS_D3D12
+    // Tracy D3D12 GPU profiling frame marker and collection
+    if (mpDevice->getType() == Device::Type::D3D12)
+    {
+        TracyD3D12Ctx tracyCtx = mpDevice->getTracyD3D12Ctx();
+        if (tracyCtx)
+        {
+            TracyD3D12Collect(tracyCtx);
+            TracyD3D12NewFrame(tracyCtx);
+        }
+    }
+#endif
 #endif
 }
 
