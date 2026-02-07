@@ -65,7 +65,7 @@ set_target_properties(TracyClient PROPERTIES
     FOLDER "Libraries"
 )
 # Disable ETW support to avoid Windows SDK compatibility issues
-target_compile_definitions(TracyClient PUBLIC TRACY_NO_SYSTEM_TRACING)
+# target_compile_definitions(TracyClient PUBLIC TRACY_NO_SYSTEM_TRACING)
 
 # -----------------------------------------------------------------------------
 # Dependencies in local files

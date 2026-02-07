@@ -25,7 +25,13 @@ target_sources(GBuffer PRIVATE
     VBuffer/VBufferRT.h
     VBuffer/VBufferRT.rt.slang
     VBuffer/VBufferRT.slang
+    VBuffer/VBufferMeshletRaster.cpp
+    VBuffer/VBufferMeshletRaster.h
+    VBuffer/MeshletRaster.cs.slang
+    VBuffer/MeshletResolve.cs.slang
 )
+
+target_link_libraries(GBuffer PRIVATE meshoptimizer)
 
 target_copy_shaders(GBuffer RenderPasses/GBuffer)
 
