@@ -8,7 +8,7 @@ namespace Falcor
 {
 
 /// Global error diagnostic flags.
-static ErrorDiagnosticFlags gErrorDiagnosticFlags = ErrorDiagnosticFlags::BreakOnThrow | ErrorDiagnosticFlags::BreakOnAssert;
+const ErrorDiagnosticFlags gErrorDiagnosticFlags = ErrorDiagnosticFlags::BreakOnThrow | ErrorDiagnosticFlags::BreakOnAssert | ErrorDiagnosticFlags::AppendStackTrace;
 
 void throwException(const fstd::source_location& loc, std::string_view msg)
 {
@@ -20,7 +20,7 @@ void throwException(const fstd::source_location& loc, std::string_view msg)
     if (is_set(gErrorDiagnosticFlags, ErrorDiagnosticFlags::BreakOnThrow) && isDebuggerPresent())
         debugBreak();
 
-    throw RuntimeError(fullMsg);
+    logErrorOnce(fullMsg);
 }
 
 void reportAssertion(const fstd::source_location& loc, std::string_view cond, std::string_view msg)
@@ -35,7 +35,7 @@ void reportAssertion(const fstd::source_location& loc, std::string_view cond, st
     if (is_set(gErrorDiagnosticFlags, ErrorDiagnosticFlags::BreakOnAssert) && isDebuggerPresent())
         debugBreak();
 
-    throw AssertionError(fullMsg);
+    logErrorOnce(fullMsg);
 }
 
 //
@@ -44,7 +44,7 @@ void reportAssertion(const fstd::source_location& loc, std::string_view cond, st
 
 void setErrorDiagnosticFlags(ErrorDiagnosticFlags flags)
 {
-    gErrorDiagnosticFlags = flags;
+    //gErrorDiagnosticFlags = flags;
 }
 
 ErrorDiagnosticFlags getErrorDiagnosticFlags()
