@@ -181,9 +181,6 @@ namespace Mogwai
         KeyCallback mKeyCallback;
         SceneUpdateCallback mSceneUpdateCallback;
         FILE*       mPipedOutput = nullptr;
-        bool mTriggerPixCapture = false;
-        bool mPixCaptureActive = false;
-        std::filesystem::path mPixCapturePath;
 
         // Scripting
         void registerScriptBindings(pybind11::module& m);

@@ -14,13 +14,6 @@
 
 #include <filesystem>
 #include <algorithm>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
-
-#if FALCOR_HAS_D3D12
-#include <WinPixEventRuntime/pix3.h>
-#endif
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
@@ -37,49 +30,6 @@ namespace Mogwai
 
         const std::filesystem::path kAppDataPath = getAppDataDirectory() / "NVIDIA/Falcor/Mogwai.json";
     }
-
-#if FALCOR_HAS_D3D12
-    HMODULE gPixGpuCapturerHandle = nullptr;
-
-    void loadPixGpuCapturer()
-    {
-        std::filesystem::path pixDllPath = getRuntimeDirectory() / "WinPixEventRuntime.dll";
-        if (!std::filesystem::exists(pixDllPath))
-        {
-            logWarning("PIX GPU Capturer DLL not found at: {}", pixDllPath.string());
-            return;
-        }
-
-        gPixGpuCapturerHandle = LoadLibraryW(pixDllPath.c_str());
-        if (gPixGpuCapturerHandle)
-        {
-            logInfo("Loaded PIX GPU Capturer for programmatic capture support");
-        }
-        else
-        {
-            logWarning("Failed to load PIX GPU Capturer DLL");
-        }
-    }
-
-    std::filesystem::path generatePixCaptureFilename()
-    {
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-
-        std::tm tm{};
-        localtime_s(&tm, &time);
-
-        std::ostringstream oss;
-        oss << "Falcor_"
-            << std::put_time(&tm, "%Y%m%d_%H%M%S")
-            << ".wpix";
-
-        std::filesystem::path capturesDir = getRuntimeDirectory() / "PIXCaptures";
-        std::filesystem::create_directories(capturesDir);
-
-        return capturesDir / oss.str();
-    }
-#endif
 
     size_t Renderer::DebugWindow::index = 0;
 
@@ -174,18 +124,6 @@ namespace Mogwai
     void Renderer::onGuiRender(Gui* pGui)
     {
         for (auto& pe : mpExtensions)  pe->renderUI(pGui);
-
-#if FALCOR_HAS_D3D12
-        if (getDevice()->getType() == Device::Type::D3D12)
-        {
-            Gui::Window w(pGui, "PIX Capture", { 300, 300 }, { 200, 50 }, Gui::WindowFlags::Default);
-            if (w.button("Capture Frame (F11)"))
-            {
-                mTriggerPixCapture = true;
-                logInfo("PIX capture triggered via GUI");
-            }
-        }
-#endif
     }
 
     bool isInVector(const std::vector<std::string>& strVec, const std::string& str)
@@ -719,25 +657,6 @@ namespace Mogwai
             pGraph->compile(pRenderContext);
         }
 
-#if FALCOR_HAS_D3D12
-        if (mTriggerPixCapture && getDevice()->getType() == Device::Type::D3D12)
-        {
-            mPixCapturePath = generatePixCaptureFilename();
-
-            HRESULT hr = PIXBeginCapture(PIX_CAPTURE_GPU, nullptr);
-            if (SUCCEEDED(hr))
-            {
-                logInfo("PIX capture started (intended path: {})", mPixCapturePath.string());
-                mPixCaptureActive = true;
-            }
-            else
-            {
-                logError("PIXBeginCapture failed: 0x{:08X}", hr);
-                mTriggerPixCapture = false;
-            }
-        }
-#endif
-
         beginFrame(pRenderContext, pTargetFbo);
 
         // Clear frame buffer.
@@ -803,23 +722,6 @@ namespace Mogwai
         }
 
         endFrame(pRenderContext, pTargetFbo);
-
-#if FALCOR_HAS_D3D12
-        if (mPixCaptureActive && getDevice()->getType() == Device::Type::D3D12)
-        {
-            HRESULT hr = PIXEndCapture(false);
-            if (SUCCEEDED(hr))
-            {
-                logInfo("PIX capture saved: {}", mPixCapturePath.string());
-            }
-            else
-            {
-                logError("PIXEndCapture failed: 0x{:08X}", hr);
-            }
-            mPixCaptureActive = false;
-            mTriggerPixCapture = false;
-        }
-#endif
     }
 
     bool Renderer::onMouseEvent(const MouseEvent& mouseEvent)
@@ -835,28 +737,6 @@ namespace Mogwai
 
     bool Renderer::onKeyEvent(const KeyboardEvent& keyEvent)
     {
-        if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
-        {
-            if (keyEvent.key == Input::Key::F11 && keyEvent.mods == Input::ModifierFlags::None)
-            {
-#if FALCOR_HAS_D3D12
-                if (getDevice()->getType() == Device::Type::D3D12)
-                {
-                    mTriggerPixCapture = true;
-                    logInfo("PIX capture triggered via F11");
-                    return true;
-                }
-                else
-                {
-                    logWarning("PIX capture only supported on D3D12");
-                }
-#else
-                logWarning("PIX capture not available");
-#endif
-                return true;
-            }
-        }
-
         for (auto& pe : mpExtensions)
         {
             if (pe->keyboardEvent(keyEvent)) return true;
@@ -1056,10 +936,6 @@ int runMain(int argc, char** argv)
     if (silentFlag) options.silentMode = true;
     if (useSceneCacheFlag) options.useSceneCache = true;
     if (rebuildSceneCacheFlag) options.rebuildSceneCache = true;
-
-#if FALCOR_HAS_D3D12
-    Mogwai::loadPixGpuCapturer();
-#endif
 
     Mogwai::Renderer renderer(config, options);
     return renderer.run();

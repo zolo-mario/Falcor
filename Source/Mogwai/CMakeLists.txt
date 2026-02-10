@@ -19,8 +19,4 @@ target_sources(Mogwai PRIVATE
 
 target_link_libraries(Mogwai PRIVATE args)
 
-if(TARGET pix)
-    target_link_libraries(Mogwai PRIVATE pix)
-endif()
-
 target_source_group(Mogwai "/")
