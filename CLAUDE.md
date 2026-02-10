@@ -1,16 +1,18 @@
 # Falcor
 
-## Build Command
+## Commands
+
+Build everything
 ```bash
-cmake --build build/windows-vs2022 --config Debug
+cmake --build build/windows-vs2022 --config Debug -DCMAKE_MESSAGE_LOG_LEVEL=ERROR
 ```
 
-Or to build just the MeshletCulling plugin:
+Build specific plugins
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target MeshletCulling
+cmake --build build/windows-vs2022 --config Debug --target GBuffer
 ```
 
-## Run Command
+Run VBufferMeshletRaster Tests
 ```bash
-./build/windows-vs2022/bin/Debug/Mogwai.exe --script "F:/Falcor/Source/RenderPasses/MeshletCulling/MeshCulling.py" --scene "F:/Falcor/media/test_scenes/bunny.pyscene" --headless
+./build/windows-vs2022/bin/Debug/Mogwai.exe --script "F:/Falcor/Source/RenderPasses/GBuffer/VBuffer/VBufferMeshletRasterTest.py" --scene "F:/Falcor/media/test_scenes/bunny.pyscene" --headless
 ```
