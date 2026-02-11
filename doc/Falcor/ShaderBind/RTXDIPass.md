@@ -130,84 +130,8 @@ sequenceDiagram
 
 ### 5.2 RTXDI 光照采样
 
-**算法**：
-1. 使用 RIS（Resampled Importance Sampling）采样光源
-2. 支持多个光源样本
-3. 测试可见性（阴影光线）
-4. 计算光照贡献
-
 ## 6. 特殊机制说明
 
-### 6.1 RTXDI SDK 集成
+### 6.1 Falcor 与 RTXDI SDK 绑定
 
-**SDK 调用**：
-```cpp
-mpRTXDI->updateSettings();
-mpRTXDI->prepare();
-mpRTXDI->dispatch(pRenderContext);
-mpRTXDI->finalize();
-```
-
-**配置**：
-- `RTXDI::Options` - RTXDI 选项
-- 光源列表
-- 相机参数
-
-### 6.2 表面数据准备
-
-**内容**：
-- 世界空间位置
-- 世界空间法线
-- 粗糙度
-- 材质 ID
-- ...
-
-用于 RTXDI 进行光照计算。
-
-### 6.3 光源类型
-
-支持：
-- 点光源
-- 方向光
-- 聚光灯
-- 面光源（可选）
-
-### 6.4 可见性测试
-
-RTXDI 内部执行可见性测试（阴影光线），输出可见性掩码。
-
-### 6.5 最终着色
-
-**BSDF 评估**：
-- 使用表面数据和材质数据评估 BSDF
-- 将光照样本与 BSDF 混合
-- 应用曝光
-
-### 6.6 与 PathTracer 的对比
-
-| 特性 | PathTracer | RTXDIPass |
-|------|------------|-----------|
-| 光照方式 | 路径追踪 | RTXDI |
-| NEE | 支持 | RTXDI（自动） |
-| 间接光照 | 支持 | 不支持（仅直接光照） |
-| 光源采样 | PDF 采样 | RIS |
-| SDK 集成 | 无 | RTXDI SDK |
-
-### 6.7 Shader 文件
-
-- `PrepareSurfaceData.cs.slang` - 表面数据准备
-- `FinalShading.cs.slang` - 最终着色
-
-### 6.8 设备特性要求
-
-- Raytracing Tier 1.1（如果 RTXDI 使用光线追踪）
-- Compute Shader 支持
-
-## 7. 注意事项
-
-RTXDIPass 演示了如何将 RTXDI SDK 集成到 Falcor 中。RTXDI 的核心逻辑在 SDK 内部，不直接暴露在 shader 中。
-
-关键点：
-1. **PrepareSurfaceData** - 将 VBuffer 转换为 RTXDI 格式
-2. **RTXDI SDK** - 执行直接光照计算
-3. **FinalShading** - 将光照结果与材质 BSDF 混合
+**PrepareSurfaceData**（`PrepareSurfaceData.cs.slang`）：从 VBuffer 读取几何体，绑定表面数据到 RTXDI 格式。**FinalShading**（`FinalShading.cs.slang`）：绑定 RTXDI 输出与材质数据，应用 BSDF。RTXDI SDK 通过 `mpRTXDI->updateSettings()`, `prepare()`, `dispatch()`, `finalize()` 接收 Falcor 资源，核心逻辑在 SDK 内部。

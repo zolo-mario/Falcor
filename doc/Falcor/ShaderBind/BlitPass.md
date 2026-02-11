@@ -19,7 +19,7 @@ BlitPass 是一个简单的纹理拷贝 RenderPass，将输入纹理拷贝到输
 
 ## 3. Constant Buffer 结构映射
 
-无 Constant Buffer。此 pass 不使用任何 CB。
+无 Constant Buffer，无 Sampler。此 pass 不使用 shader，通过 `blit(SRV, RTV)` 直接传递资源。
 
 ## 4. 纹理/缓冲区生命周期
 

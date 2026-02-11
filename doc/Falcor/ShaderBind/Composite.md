@@ -99,34 +99,9 @@ sequenceDiagram
     CP->>RC: execute(pRenderContext, mFrameDim.x, mFrameDim.y)
 ```
 
-### 5.2 混合算法
+### 5.2 Shader Defines 动态生成
 
-**Add 模式**：
-```hlsl
-result = (scaleA * A[pixel]) + (scaleB * B[pixel]);
-```
-
-**Multiply 模式**：
-```hlsl
-result = (scaleA * A[pixel]) * (scaleB * B[pixel]);
-```
-
-### 5.3 输出格式转换
-
-**Shader Defines**：
-- `_OUTPUT_FORMAT_FLOAT` - 浮点输出（默认）
-- `_OUTPUT_FORMAT_UINT` - 无符号整数输出
-- `_OUTPUT_FORMAT_SINT` - 有符号整数输出
-
-**整数转换**：
-```hlsl
-#if OUTPUT_FORMAT != OUTPUT_FORMAT_FLOAT
-    result = round(result); // 四舍五入到最近偶数
-#endif
-output[pixel] = result;
-```
-
-### 5.4 Shader Defines 动态生成
+**Defines**：`COMPOSITE_MODE`（Add/Multiply）、`OUTPUT_FORMAT`（Float/Uint/Sint）。格式决定 `RWTexture2D<float4|uint4|int4>` 类型。
 
 **getDefines() 函数**：
 ```cpp
@@ -162,7 +137,7 @@ defines.add("COMPOSITE_MODE", std::to_string(compositeMode));
 defines.add("OUTPUT_FORMAT", std::to_string(outputFormat));
 ```
 
-### 5.5 绑定频率总结
+### 5.3 绑定频率总结
 
 | 资源类型 | 绑定频率 | 示例 |
 |---------|---------|------|
@@ -172,101 +147,11 @@ defines.add("OUTPUT_FORMAT", std::to_string(outputFormat));
 
 ## 6. 特殊机制说明
 
-### 6.1 可选输入
+### 6.1 可选输入与空指针
 
-输入 A 和 B 都是可选的：
-```cpp
-reflector.addInput(kInputA, "Input A")
-    .bindFlags(ResourceBindFlags::ShaderResource)
-    .flags(RenderPassReflection::Field::Flags::Optional);
-reflector.addInput(kInputB, "Input B")
-    .bindFlags(ResourceBindFlags::ShaderResource)
-    .flags(RenderPassReflection::Field::Flags::Optional);
-```
-
-在 shader 中，如果输入为 nullptr，采样结果为未定义（通常为 0）。
-
-### 6.2 空指针处理
+输入 A 和 B 在 `reflect()` 中标记为 `Optional`。`var["A"]`、`var["B"]` 可绑定 `nullptr`，Shader 中对应采样结果未定义。
 
 ```cpp
+reflector.addInput(kInputA, "Input A").bindFlags(...).flags(Optional);
 var["A"] = renderData.getTexture(kInputA); // Can be nullptr
-var["B"] = renderData.getTexture(kInputB); // Can be nullptr
 ```
-
-如果某个输入为 nullptr，shader 中的 `A[pixel]` 或 `B[pixel]` 可能返回未定义的值。建议确保输入连接正确。
-
-### 6.3 整数输出
-
-**格式转换**：
-- 浮点运算结果使用 `round()` 转换为整数
-- 使用四舍五入到最近偶数（银行家舍入）
-
-**适用场景**：
-- 将浮点结果输出到整数格式（如 RGBA8Unorm）
-- 避免截断误差
-
-### 6.4 输出格式支持
-
-通过 `mOutputFormat` 成员控制：
-- 默认：`RGBA32Float`
-- 可在构造函数或通过属性设置
-
-### 6.5 缩放因子
-
-**独立缩放**：
-- `scaleA` - 输入 A 的缩放因子
-- `scaleB` - 输入 B 的缩放因子
-
-**默认值**：1.0（无缩放）
-
-**UI 控制**：
-```cpp
-widget.var("Scale A", mScaleA);
-widget.var("Scale B", mScaleB);
-```
-
-### 6.6 线程组大小
-
-```hlsl
-[numthreads(16, 16, 1)]
-void main(uint3 dispatchThreadId: SV_DispatchThreadID)
-```
-
-Dispatch 调用：
-```cpp
-mCompositePass->execute(pRenderContext, mFrameDim.x, mFrameDim.y);
-```
-
-自动计算线程组数量。
-
-### 6.7 边界检查
-
-```hlsl
-const uint2 pixel = dispatchThreadId.xy;
-if (any(pixel >= frameDim))
-    return;
-```
-
-确保线程不超出图像边界。
-
-### 6.8 输入 A/B 可以为 nullptr
-
-如果输入未连接：
-- `renderData.getTexture(kInputA)` 返回 nullptr
-- Shader 中 `Texture2D<float4> A` 绑定到无效资源
-- 采样行为未定义
-
-**建议**：在 UI 中显示警告或确保输入已连接。
-
-### 6.9 复合模式对比
-
-| 模式 | 算法 | 典型用途 |
-|------|------|---------|
-| Add | `scaleA * A + scaleB * B` | 光照叠加、混合两张图像 |
-| Multiply | `scaleA * A * scaleB * B` | 遮罩应用、调制效果 |
-
-### 6.10 性能考虑
-
-- 使用计算着色器进行逐像素操作
-- 线程组大小 16x16 适合现代 GPU
-- 可选输入减少内存带宽（如果不需要某个输入）

@@ -87,73 +87,8 @@ sequenceDiagram
     MI->>RC: execute(pRenderContext, mFrameDim.x, mFrameDim.y)
 ```
 
-### 5.2 光照调制算法
-
-**漫反射**：
-```hlsl
-if (is_valid(gDiffuseRadiance))
-{
-    float3 diffuseColor = gDiffuseRadiance[pixel].rgb;
-    if (is_valid(gDiffuseReflectance))
-        diffuseColor *= gDiffuseReflectance[pixel].rgb;
-    outputColor.rgb += diffuseColor;
-}
-```
-
-**镜面反射**：
-```hlsl
-if (is_valid(gSpecularRadiance))
-{
-    float3 specularColor = gSpecularRadiance[pixel].rgb;
-    if (is_valid(gSpecularReflectance))
-        specularColor *= gSpecularReflectance[pixel].rgb;
-    outputColor.rgb += specularColor;
-}
-```
-
-**Delta 反射**：
-```hlsl
-if (is_valid(gDeltaReflectionRadiance))
-{
-    float3 deltaReflectionColor = gDeltaReflectionRadiance[pixel].rgb;
-    if (is_valid(gDeltaReflectionReflectance))
-        deltaReflectionColor *= gDeltaReflectionReflectance[pixel].rgb;
-    outputColor.rgb += deltaReflectionColor;
-}
-```
-
-**Delta 透射**：类似 Delta 反射
-
-**自发光和残差**：直接添加到输出
-
 ## 6. 特殊机制说明
 
-### 6.1 可选通道
+### 6.1 可选通道与 Defines
 
-所有 13 个输入通道都是可选的。使用 `is_valid_<name>` defines 控制哪些通道可用。
-
-### 6.2 UI 覆盖
-
-即使纹理已连接，如果 UI 中禁用了该通道，shader 也不会使用它。
-
-```cpp
-if (!mUseEmission)
-    defineList["is_valid_gEmission"] = "0";
-```
-
-### 6.3 输出格式
-
-固定为 `RGBA32Float`。
-
-### 6.4 尺寸检查
-
-如果输入纹理尺寸与输出不匹配，会记录错误。
-
-### 6.5 通道分组
-
-| 组 | 通道 |
-|------|------|
-| 基础 | Emission, Diffuse(Radiance+Reflectance), Specular(Radiance+Reflectance) |
-| Delta 反射 | Emission, Radiance, Reflectance |
-| Delta 透射 | Emission, Radiance, Reflectance |
-| 其他 | ResidualRadiance |
+所有 13 个输入在 `reflect()` 中标记为 `Optional`。使用 `is_valid_<name>` defines 控制通道可用性；UI 可覆盖：即使纹理已连接，禁用通道时 `defineList["is_valid_gEmission"] = "0"` 等。

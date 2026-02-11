@@ -236,124 +236,13 @@ sequenceDiagram
     end
 ```
 
-### 5.2 Meshlet 构建流程（CPU 端）
+### 5.2 间接绘制与资源屏障
 
-**步骤**：
-1. 从场景提取顶点和索引
-2. 使用 meshoptimizer 生成顶点重映射
-3. 优化顶点缓冲区（remapVertexBuffer）
-4. 构建 meshlets（meshopt_buildMeshlets）
-5. 计算每个 meshlet 的包围球（meshopt_computeMeshletBounds）
-6. 展平索引（从 meshlet 局部索引到全局索引）
-
-### 5.3 Culling Pass 算法
-
-**视锥测试**：
-```hlsl
-for (int i = 0; i < 6; i++)
-{
-    if (dot(meshlet.boundCenter, gFrustum.planes[i].xyz) + meshlet.boundRadius < -gFrustum.planes[i].w)
-    {
-        // Meshlet 在视锥外，剔除
-        return;
-    }
-}
-```
-
-**Append 可见 Meshlets**：
-```hlsl
-if (isMeshletVisible)
-{
-    uint idx = gVisibleMeshletIDs.Append(meshletIndex);
-    gIndirectArgs[idx].vertexCountPerInstance = meshlet.indexCount;
-    gIndirectArgs[idx].indexCountPerInstance = meshlet.indexCount;
-    gIndirectArgs[idx].startIndexLocation = meshlet.indexStart;
-    // ... 其他参数
-}
-```
-
-### 5.4 Raster Pass 算法
-
-**间接绘制**：
-```cpp
-pContext->drawIndexedIndirect(
-    mpGraphicsState.get(),
-    mpGraphicsVars.get(),
-    mStats.totalMeshlets,
-    mpIndirectArgsBuffer.get(),
-    0,
-    mpVisibleMeshletIDs->getUAVCounter().get(),
-    0
-);
-```
-
-使用可见 meshlet 数量作为绘制调用数量，每个 meshlet 对应一个绘制调用。
-
-### 5.5 Visualize Pass 算法
-
-**模式 0：MeshletID 可视化**
-```hlsl
-uint meshletID = vbuffer >> 16;
-uint3 color = hashColor(meshletID);
-gOutput[pixel] = float4(color, 1.f);
-```
-
-**模式 1：TriangleID 可视化**
-```hlsl
-uint primitiveID = vbuffer & 0xFFFF;
-uint3 color = hashColor(primitiveID);
-gOutput[pixel] = float4(color, 1.f);
-```
-
-**模式 2：Combined 可视化**
-```hlsl
-uint meshletID = vbuffer >> 16;
-uint primitiveID = vbuffer & 0xFFFF;
-float3 color1 = hashColor(meshletID);
-float3 color2 = hashColor(primitiveID);
-float3 color = (color1 + color2) * 0.5f;
-gOutput[pixel] = float4(color, 1.f);
-```
-
-### 5.6 VBuffer 存储格式
-
-**Packed MeshletID + PrimitiveID**：
-```hlsl
-// 像素着色器
-uint meshletID = gVisibleMeshletIDs[instanceID];
-uint primitiveID = PrimitiveID();
-uint packed = (meshletID << 16) | (primitiveID & 0xFFFF);
-gVBuffer[pixel] = packed;
-```
+Culling Pass 写入 `gVisibleMeshletIDs`（AppendStructuredBuffer）和 `gIndirectArgs`。Raster Pass 前需 `resourceBarrier(gIndirectArgs, IndirectArg)`、`resourceBarrier(gVisibleMeshletIDs, ShaderResource)`。`drawIndexedIndirect()` 使用 `mpVisibleMeshletIDs->getUAVCounter()` 作为绘制调用数量。VBuffer 格式：高 16 位 MeshletID，低 16 位 PrimitiveID。
 
 ## 6. 特殊机制说明
 
-### 6.1 Meshlet 构建
-
-**使用 meshoptimizer 库**：
-- `meshopt_generateVertexRemap()`：生成顶点重映射
-- `meshopt_remapIndexBuffer()`：重映射索引缓冲区
-- `meshopt_remapVertexBuffer()`：重映射顶点缓冲区
-- `meshopt_buildMeshlets()`：构建 meshlets
-- `meshopt_computeMeshletBounds()`：计算包围球
-
-**参数**：
-```cpp
-constexpr size_t kMaxVerticesPerMeshlet = 64;
-constexpr size_t kMaxTrianglesPerMeshlet = 124;
-constexpr float kConeWeight = 0.5f;
-```
-
-### 6.2 视锥剔除
-
-**6 个平面**：
-- 左、右、上、下、近、远
-
-**包围球测试**：
-- 如果球心到平面的距离 + 半径 < -平面.w，则球完全在平面外
-- 需要所有 6 个平面都通过才算可见
-
-### 6.3 间接绘制
+### 6.1 间接绘制与 Append Buffer
 
 **DrawIndexedIndirectArgs 结构**：
 ```cpp
@@ -376,15 +265,13 @@ pContext->drawIndexedIndirect(
 );
 ```
 
-### 6.4 资源屏障
+### 6.2 资源屏障
 
 **Culling Pass 后**：
 ```cpp
 pRenderContext->uavBarrier(mpVisibleMeshletIDs.get());
 pRenderContext->uavBarrier(mpIndirectArgsBuffer.get());
 ```
-
-确保 Append Buffer 和 Indirect Args Buffer 的写入完成。
 
 **Raster Pass 前**：
 ```cpp
@@ -394,93 +281,10 @@ pContext->resourceBarrier(mpVisibleMeshletIDs.get(), Resource::State::ShaderReso
 
 转换状态以供 Raster Pass 使用。
 
-### 6.5 可视化模式
-
-**模式 0：MeshletID**
-- 每个 meshlet 使用不同颜色
-- 用于调试 meshlet 剔除
-
-**模式 1：TriangleID**
-- 每个三角形使用不同颜色
-- 用于调试三角形可见性
-
-**模式 2：Combined**
-- 混合 MeshletID 和 TriangleID 的颜色
-
-### 6.6 统计信息
-
-**读取**：
-```cpp
-if (mReadbackStats)
-{
-    pRenderContext->submit(true);
-    mStats.visibleMeshlets = mpVisibleMeshletIDs->getUAVCounter()->getElement<uint32_t>(0);
-}
-```
-
-**计算剔除率**：
-```cpp
-float cullRate = 1.0f - (float)mStats.visibleMeshlets / (float)mStats.totalMeshlets;
-```
-
-### 6.7 冻结剔除
-
-```cpp
-if (pCamera && !mFreezeCulling)
-{
-    updateFrustumData(pCamera);
-}
-```
-
-当启用冻结时，不再更新视锥数据，用于调试。
-
-### 6.8 CPU 端优化
-
-**顶点重映射**：
-- 减少顶点数量
-- 提高缓存利用率
-
-**展平索引**：
-- 将 meshlet 的局部索引转换为全局索引
-- 间接绘制需要全局索引
-
-### 6.9 线程组大小
-
-**Culling Pass**：
-```hlsl
-[numthreads(64, 1, 1)]
-void main(uint3 dispatchThreadId: SV_DispatchThreadID)
-```
-
-每个线程处理一个 meshlet。
-
-**Visualize Pass**：
-```hlsl
-[numthreads(16, 16, 1)]
-void main(uint3 dispatchThreadId: SV_DispatchThreadID)
-```
-
-标准的 16x16 像素处理。
-
-### 6.10 VBuffer 格式
+### 6.3 VBuffer 格式
 
 **R32Uint**：
 - 高 16 位：MeshletID
 - 低 16 位：PrimitiveID
 
 用于后续 pass 重建 meshlet 信息。
-
-### 6.11 Alpha Test
-
-当前实现不包含 alpha test。
-
-### 6.12 深度测试
-
-```cpp
-dsDesc.setDepthFunc(ComparisonFunc::Less);
-dsDesc.setDepthWriteMask(true);
-```
-
-### 6.13 剔除率
-
-通常在 80-95% 之间，具体取决于场景复杂度。

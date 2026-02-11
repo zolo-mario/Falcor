@@ -164,72 +164,9 @@ gVBuffer[ipos] = triangleHit.pack();
 
 ## 6. 特殊机制说明
 
-### 6.1 与 GBufferRaster 的对比
+### 6.1 可选通道与 binding
 
-| 特性 | GBufferRaster | VBufferRaster |
-|------|--------------|--------------|
-| Pass 数量 | 2 (Depth + GBuffer) | 1 |
-| 输出 RTs | 8 | 1 (vbuffer) |
-| 输出 UAVs | 9 (可选） | 2 (可选） |
-| Shader 入口点 | vsMain/psMain (x2) | vsMain/psMain |
-| Alpha Test | 两个 pass | 像素着色器 |
-
-### 6.2 设备特性要求
-
-```cpp
-if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_2))
-    FALCOR_THROW("VBufferRaster requires Shader Model 6.2 support.");
-if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::Barycentrics))
-    FALCOR_THROW("VBufferRaster requires pixel shader barycentrics support.");
-if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::RasterizerOrderedViews))
-    FALCOR_THROW("VBufferRaster requires rasterizer ordered views (ROVs) support.");
-```
-
-### 6.3 可选通道机制
-
-与 GBufferRaster 相同，使用 `is_valid_<name>` defines。
-
-### 6.4 深度测试
-
-```cpp
-DepthStencilState::Desc dsDesc;
-dsDesc.setDepthFunc(ComparisonFunc::LessEqual).setDepthWriteMask(true);
-mRaster.pState->setDepthStencilState(DepthStencilState::create(dsDesc));
-```
-
-### 6.5 剔除模式
-
-```cpp
-RasterizerState::CullMode cullMode = mForceCullMode ? mCullMode : kDefaultCullMode;
-```
-
-默认：背面剔除（Back）。
-
-### 6.6 可见性缓冲区内容
-
-**PackedHitInfo**：
-- `instanceID`：实例 ID
-- `primitiveIndex`：图元索引
-- `barycentrics`：重心坐标（yz 分量）
-
-用于后续 pass（如 PathTracer）重建几何体信息。
-
-### 6.7 运动向量计算
-
-如果启用 `mvec` 通道：
-- 需要计算屏幕空间运动向量
-- 需要相机抖动信息
-
-（具体实现参考 GBufferRaster.md）
-
-### 6.8 帧维度更新
-
-每次 execute() 时更新：
-```cpp
-auto pOutput = renderData.getTexture(kVBufferName);
-FALCOR_ASSERT(pOutput);
-updateFrameDim(uint2(pOutput->getWidth(), pOutput->getHeight()));
-```
+mvec、mask 为可选通道，`is_valid_*` defines 控制。FBO 绑定 vbuffer (RTV) + depth (DSV)；Scene 自动绑定。`DepthStencilState::LessEqual`，剔除模式通过 `rasterize()` 传入。`updateFrameDim()` 从 output 纹理取分辨率。
 
 ## 7. 与 VBufferRT 的对比
 

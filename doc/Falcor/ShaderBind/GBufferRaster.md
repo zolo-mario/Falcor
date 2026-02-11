@@ -253,40 +253,11 @@ RasterizerOrderedTexture2D<float4> gGuideNormalW;
 
 ## 6. 特殊机制说明
 
-### 6.1 双 Pass 架构
+### 6.1 双 Pass 与 FBO
 
-**深度 Pass**：
-- 目的：填充深度缓冲区，执行 alpha test
-- 优势：避免后续 pass 对被遮挡像素进行不必要的着色计算
-- 深度测试：`DepthFunc::Equal`（与已填充的深度比较）
+深度 Pass 仅绑定 DSV，GBuffer Pass 绑定 8 RTV + 9 UAV（可选）。两 pass 均使用 Scene 自动绑定，共享 `DepthFunc::Equal`。
 
-**GBuffer Pass**：
-- 目的：渲染所有 G-Buffer 通道
-- 使用 `DepthFunc::Equal` 确保只渲染深度匹配的像素
-- 使用 `earlydepthstencil` 优化深度测试
-
-### 6.2 Pixel Shader Barycentrics
-
-**用途**：
-- 在像素着色器中获取三角形重心坐标
-- 用于可见性缓冲区存储三角形信息
-
-**Shader 声明**：
-```hlsl
-[earlydepthstencil]
-GBufferPSOut psMain(VSOut vsOut, uint triangleIndex: SV_PrimitiveID, float3 barycentrics: SV_Barycentrics)
-```
-
-**存储格式**：
-```hlsl
-TriangleHit triangleHit;
-triangleHit.instanceID = vsOut.instanceID;
-triangleHit.primitiveIndex = triangleIndex;
-triangleHit.barycentrics = barycentrics.yz;
-gVBuffer[ipos] = triangleHit.pack();
-```
-
-### 6.3 可选通道机制
+### 6.2 可选通道机制
 
 **设计目标**：
 - 允许下游 pass 选择需要的 G-Buffer 通道
@@ -305,72 +276,9 @@ if (is_valid(gVBuffer))
     gVBuffer[ipos] = triangleHit.pack();
 ```
 
-### 6.4 运动向量计算
+gVBuffer 使用 `SV_PrimitiveID` 和 `SV_Barycentrics` 打包 TriangleHit。
 
-**算法**：
-```hlsl
-float2 pixelPos = ipos + float2(0.5, 0.5);
-float4 prevPosH = vsOut.prevPosH;
-return calcMotionVector(pixelPos, prevPosH, gFrameDim) + float2(gScene.camera.data.jitterX, -gScene.camera.data.jitterY);
-```
-
-**组成**：
-- 当前像素位置 → 前一帧 clip space 位置的映射
-- 移除相机抖动（用于 TAA/DLSS 等技术）
-
-### 6.5 纹理梯度计算
-
-**用途**：
-- 计算纹理坐标的屏幕空间导数
-- 用于各向异性纹理采样和 Mipmap 选择
-
-**计算方式**：
-```hlsl
-const float4 texGrads = float4(ddx(sd.uv), ddy(sd.uv));
-```
-
-### 6.6 位置和法线过滤宽度
-
-**用途**：
-- 为 SVGF 降噪器提供特征引导
-- 表示像素间位置和法线的变化程度
-
-**计算方式**：
-```hlsl
-gPosNormalFwidth[ipos] = float2(
-    length(fwidth(sd.posW)),
-    length(fwidth(bsdfProperties.guideNormal))
-);
-```
-
-### 6.7 线性 Z 和导数
-
-**用途**：
-- 透视正确的深度值
-- 深度导数用于降噪和深度感知效果
-
-**计算方式**：
-```hlsl
-const float linearZ = vsOut.posH.z * vsOut.posH.w;
-gLinearZAndDeriv[ipos] = float2(
-    linearZ,
-    max(abs(ddx(linearZ)), abs(ddy(linearZ)))
-);
-```
-
-### 6.8 设备特性要求
-
-**必需特性**：
-```cpp
-if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_2))
-    FALCOR_THROW("GBufferRaster requires Shader Model 6.2 support.");
-if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::Barycentrics))
-    FALCOR_THROW("GBufferRaster requires pixel shader barycentrics support.");
-if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::RasterizerOrderedViews))
-    FALCOR_THROW("GBufferRaster requires rasterizer ordered views (ROVs) support.");
-```
-
-### 6.9 Alpha Test
+### 6.3 Alpha Test Define
 
 **深度 Pass**：
 ```hlsl
@@ -389,9 +297,7 @@ if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::RasterizerOrderedVi
 #endif
 ```
 
-两个 pass 都执行 alpha test 以确保一致性。
-
-### 6.10 着色法线调整
+### 6.4 着色法线 Define
 
 **Purpose**：
 - 调整着色法线以改善光照效果
@@ -408,87 +314,4 @@ uint hints = 0;
 #if ADJUST_SHADING_NORMALS
     hints |= (uint)MaterialInstanceHints::AdjustShadingNormal;
 #endif
-let mi = gScene.materials.getMaterialInstance(sd, lod, hints);
-```
-
-### 6.11 剔除模式
-
-**默认模式**：
-```cpp
-const RasterizerState::CullMode kDefaultCullMode = RasterizerState::CullMode::Back;
-```
-
-**强制模式**：
-```cpp
-const RasterizerState::CullMode cullMode = mForceCullMode ? mCullMode : kDefaultCullMode;
-```
-
-**应用**：在 `mpScene->rasterize()` 调用时传入
-
-### 6.12 帧维度更新
-
-**时机**：每次 execute() 时更新
-
-**用途**：
-- 用于运动向量计算
-- 用于屏幕空间操作
-
-**计算方式**：
-```cpp
-auto pDepth = renderData.getTexture(kDepthName);
-updateFrameDim(uint2(pDepth->getWidth(), pDepth->getHeight()));
-```
-
-## 7. G-Buffer 数据结构
-
-### 7.1 GBufferData 结构（shader 端）
-
-```hlsl
-struct GBufferData
-{
-    float4 posW;           // 世界空间位置
-    float4 normW;          // 世界空间着色法线
-    float4 tangentW;       // 世界空间切线（含手性符号）
-    float4 faceNormalW;    // 世界空间面法线
-    float4 guideNormalW;   // 引导法线
-    float2 texC;           // 纹理坐标
-    uint4 mtlData;         // 材质数据
-
-    // Legacy channels
-    float4 diffuseOpacity;  // 漫反射率和不透明度
-    float4 specRough;       // 镜面反射率和粗糙度
-    float4 emissive;        // 自发光颜色
-};
-```
-
-### 7.2 材质数据格式
-
-**uint4 mtlData 结构**：
-- `.x`: `sd.materialID` - 材质 ID
-- `.y`: `sd.mtl.packedData.x` - 材质头部第一个 32 位
-- `.z`: `sd.mtl.packedData.y` - 材质头部第二个 32 位
-- `.w`: `mi.getLobeTypes(sd)` - 材质波瓣类型
-
-**限制**：当前仅存储材质头部的 8 字节（前两个 uint32）
-
-### 7.3 切线手性符号
-
-**用途**：
-- 存储在 `tangentW.w` 中
-- 用于正确计算副法线
-- 表示局部坐标系的手性
-
-**计算方式**：
-```hlsl
-float bitangentSign = sd.frame.getHandednessSign();
-gbuf.tangentW = v.tangentW; // 包含手性符号
-```
-
-### 7.4 TriangleHit 结构（可见性缓冲区）
-
-**内容**：
-- `instanceID`: 实例 ID
-- `primitiveIndex`: 图元索引
-- `barycentrics`: 重心坐标 (yz 分量，因为 barycentrics.x = 1 - barycentrics.y - barycentrics.z)
-
-**打包**：使用 `triangleHit.pack()` 存储为 `PackedHitInfo`
+**Defines**：`USE_ALPHA_TEST`（深度+GBuffer 双 pass）、`ADJUST_SHADING_NORMALS`（`addDefine(..., mAdjustShadingNormals ? "1" : "0")`）。剔除模式在 `mpScene->rasterize()` 时传入。`updateFrameDim()` 从 depth 纹理取分辨率。

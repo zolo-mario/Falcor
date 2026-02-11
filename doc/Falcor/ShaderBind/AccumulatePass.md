@@ -170,77 +170,7 @@ sequenceDiagram
     end
 ```
 
-### 5.2 累积算法
-
-**Single 模式**：
-```hlsl
-float curWeight = 1.0 / (gAccumCount + 1);
-
-if (gMovingAverageMode)
-{
-    // 指数加权移动平均
-    output = lerp(gLastFrameSum[pixelPos], curColor, curWeight);
-    gLastFrameSum[pixelPos] = output;
-}
-else
-{
-    // 高精度无限制模式
-    float4 sum = gLastFrameSum[pixelPos] + curColor;
-    output = sum * curWeight;
-    gLastFrameSum[pixelPos] = sum;
-}
-```
-
-**SingleCompensated 模式**（Kahan 求和）：
-```hlsl
-float4 sum = gLastFrameSum[pixelPos];
-float4 c = gLastFrameCorr[pixelPos];
-
-// 调整当前值以最小化运行误差
-float4 y = curColor - c;
-float4 sumNext = sum + y;
-output = sumNext / (gAccumCount + 1);
-
-gLastFrameSum[pixelPos] = sumNext;
-gLastFrameCorr[pixelPos] = (sumNext - sum) - y; // 存储新的补偿项
-```
-
-**Double 模式**：
-```hlsl
-double curWeight = 1.0 / (gAccumCount + 1);
-
-uint4 sumLo = gLastFrameSumLo[pixelPos];
-uint4 sumHi = gLastFrameSumHi[pixelPos];
-double sum[4];
-
-if (gMovingAverageMode)
-{
-    // 指数加权移动平均
-    for (int i = 0; i < 4; i++)
-    {
-        sum[i] = asdouble(sumLo[i], sumHi[i]);
-        sum[i] = sum[i] * (1.0 - curWeight) + (double)curColor[i] * curWeight;
-        asuint(sum[i], sumLo[i], sumHi[i]);
-        output[i] = (float)sum[i];
-    }
-}
-else
-{
-    // 高精度无限制模式
-    for (int i = 0; i < 4; i++)
-    {
-        sum[i] = asdouble(sumLo[i], sumHi[i]);
-        sum[i] += (double)curColor[i];
-        asuint(sum[i], sumLo[i], sumHi[i]);
-        output[i] = (float)(sum[i] * curWeight);
-    }
-}
-
-gLastFrameSumLo[pixelPos] = sumLo;
-gLastFrameSumHi[pixelPos] = sumHi;
-```
-
-### 5.3 输入格式类型
+### 5.2 输入格式 Defines
 
 **Shader Defines**：
 - `_INPUT_FORMAT_FLOAT` - 浮点输入（默认）
@@ -263,7 +193,7 @@ default:
 }
 ```
 
-### 5.4 绑定频率总结
+### 5.3 绑定频率总结
 
 | 资源类型 | 绑定频率 | 示例 |
 |---------|---------|------|
@@ -274,39 +204,11 @@ default:
 
 ## 6. 特殊机制说明
 
-### 6.1 三种精度模式
+### 6.1 精度模式与 UAV 绑定
 
-**Single**：
-- 标准单精度浮点求和
-- 适合一般用途
-- 可能累积浮点误差
+三种精度对应不同 UAV 组合：**Single**（gLastFrameSum）、**SingleCompensated**（gLastFrameSum + gLastFrameCorr）、**Double**（gLastFrameSumLo + gLastFrameSumHi）。精度由 Program 选择决定，`prepareAccumulation()` 仅创建当前模式所需缓冲区。
 
-**SingleCompensated**：
-- Kahan 求和算法
-- 通过补偿项减少浮点误差
-- 需要精确浮点模式编译标志
-
-**Double**：
-- 双精度浮点求和
-- 最高精度
-- 将 double 存储为两个 uint4 纹理（低位和高位）
-- 适用于需要高精度的场景
-
-### 6.2 溢出模式
-
-当达到 `mMaxFrameCount` 时：
-- **Stop**：停止累积，保留累积图像
-- **Reset**：重置累积
-- **EMA**：切换到指数移动平均模式
-
-**EMA 模式**：
-```hlsl
-output = lerp(gLastFrameSum[pixelPos], curColor, curWeight);
-```
-
-每个新帧与历史帧混合，权重相同。
-
-### 6.3 自动重置
+### 6.2 自动重置
 
 **触发条件**：
 - 刷新标志（`kRenderPassRefreshFlags`）
@@ -338,14 +240,7 @@ if (mAutoReset)
 }
 ```
 
-### 6.4 分辨率不匹配处理
-
-三种处理方式：
-1. **mEnabled && 分辨率匹配**：执行累积
-2. **mEnabled && 分辨率不匹配 && 非整数输入**：执行 blit
-3. **其他**：清空输出并记录警告
-
-### 6.5 编译标志
+### 6.3 编译标志
 
 **SingleCompensated 模式**需要精确浮点模式：
 ```cpp
@@ -358,34 +253,7 @@ mpProgram[Precision::SingleCompensated] = Program::createCompute(
 );
 ```
 
-### 6.6 帧计数更新
-
-```cpp
-// mMaxFrameCount = 0 表示无限累积，SingleCompensated 模式不支持限制
-if (mMaxFrameCount == 0 || mPrecisionMode == Precision::SingleCompensated ||
-    mFrameCount < mMaxFrameCount)
-{
-    mFrameCount++;
-}
-```
-
-### 6.7 线程组大小
-
-所有三个入口点都使用 `[numthreads(16, 16, 1)]`。
-
-Dispatch 计算：
-```cpp
-uint3 numGroups = div_round_up(uint3(mFrameDim.x, mFrameDim.y, 1u),
-                               pProgram->getReflector()->getThreadGroupSize());
-```
-
-### 6.8 整数格式支持
-
-AccumulatePass 支持整数输入，但要求 I/O 尺寸匹配。
-
-**不支持**：输出到整数格式（会在 reflect() 时抛出异常）。
-
-### 6.9 热重载
+### 6.4 热重载
 
 ```cpp
 void AccumulatePass::onHotReload(HotReloadFlags reloaded)

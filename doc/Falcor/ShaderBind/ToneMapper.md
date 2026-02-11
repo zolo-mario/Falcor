@@ -185,17 +185,7 @@ sequenceDiagram
         (colorTransform: white balance + exposure)
   ```
 
-### 5.4 自动曝光工作流程
-
-1. **LuminancePass** 输出对数亮度：`log2(max(0.0001, luminance(color)))`
-2. **生成 mipmap**：最高层（level 16）代表平均亮度
-3. **ToneMapPass** 读取平均亮度：
-   ```hlsl
-   float avgLuminance = exp2(gLuminanceTex.SampleLevel(gLuminanceTexSampler, texC, kLuminanceLod).r);
-   finalColor *= (kExposureKey / avgLuminance);  // kExposureKey = 0.042
-   ```
-
-### 5.5 绑定频率总结
+### 5.4 绑定频率总结
 
 | 资源类型 | 绑定频率 | 示例 |
 |---------|---------|------|
@@ -219,63 +209,17 @@ ToneMapPass 在以下情况会触发 shader 重新编译：
 
 ### 6.2 动态参数更新
 
-不触发 recompile 的参数（仅更新 CB）：
-- `mExposureCompensation`：曝光补偿
-- `mFilmSpeed`、`mFNumber`、`mShutter`：手动曝光参数
-- `mWhitePoint`：白平衡色温
-- `mWhiteScale`、`mWhiteMaxLuminance`：算子特定参数
+不触发 recompile 的参数仅更新 CB：`mExposureCompensation`、`mFilmSpeed`、`mFNumber`、`mShutter`、`mWhitePoint` 等。`mUpdateToneMapPass = true` 时在 execute() 中 `setBlob(&params, 64)`。
 
-这些参数改变时，`mUpdateToneMapPass = true`，在 execute() 中更新 `PerImageCB`。
+### 6.3 CB 类型约定
 
-### 6.3 颜色变换矩阵
+`ToneMapperParams` 中 `colorTransform` 为 `float3x4`，shader 中以 `float3x3` 使用前 3 列。整块通过 `setBlob(&params, 64)` 设置。
 
-**ColorTransform 组成**：
-```cpp
-mColorTransform = mWhiteBalanceTransform * exposureScale * manualExposureScale;
-```
+### 6.4 输出格式与 Luminance FBO
 
-**应用顺序**（shader 端）：
-```hlsl
-finalColor = mul((float3x3)gParams.colorTransform, finalColor);
-```
+`reflect()` 支持自定义输出格式。Luminance FBO 格式根据输入通道位数选 R32Float/R16Float，尺寸为 bit_floor(resolution)。
 
-**注意事项**：
-- `ToneMapperParams` 中 `colorTransform` 类型为 `float3x4`，但 shader 中转换为 `float3x3` 使用
-- 这种转换是合法的，因为只使用前 3 列的 3 个分量
-
-### 6.4 输出格式支持
-
-通过 `reflect()` 函数支持自定义输出格式：
-```cpp
-if (mOutputFormat != ResourceFormat::Unknown)
-    output.format(mOutputFormat);
-```
-
-常见格式：
-- `ResourceFormat::RGBA16Float`（HDR）
-- `ResourceFormat::RGBA8Unorm`（LDR）
-- `ResourceFormat::RGBA8UnormSrgb`（sRGB LDR）
-
-### 6.5 对数亮度纹理
-
-**格式选择**：
-```cpp
-ResourceFormat luminanceFormat = (bytesPerChannel == 4) ?
-    ResourceFormat::R32Float : ResourceFormat::R16Float;
-```
-
-- 输入为 32-bit float 通道：使用 R32Float
-- 输入为 16-bit float 通道：使用 R16Float
-
-**尺寸计算**：
-```cpp
-uint32_t requiredHeight = fstd::bit_floor(pSrc->getHeight());
-uint32_t requiredWidth = fstd::bit_floor(pSrc->getWidth());
-```
-
-向下取 2 的幂次，确保能生成足够的 mipmap 层级。
-
-### 6.6 采样器选择
+### 6.5 采样器选择
 
 | Pass | 采样器 | Filter | Address | 用途 |
 |------|--------|--------|---------|------|
@@ -284,48 +228,4 @@ uint32_t requiredWidth = fstd::bit_floor(pSrc->getWidth());
 | ToneMapPass (AutoExposure) | mpLinearSampler | Linear-Linear-Point | (默认) | 对亮度纹理的 mipmap 进行采样 |
 
 **设计原因**：
-- 主色调映射使用点采样避免模糊
-- 亮度纹理采样使用线性采样，因为读取的是最高层 mipmap（平均亮度）
-
-### 6.7 暴露补偿范围
-
-```cpp
-const float kExposureCompensationMin = -12.f;
-const float kExposureCompensationMax = 12.f;
-```
-
-对应 +/- 12 档曝光（F-stops），覆盖典型摄影需求。
-
-### 6.8 场景元数据支持
-
-加载场景时，如果 `mUseSceneMetadata = true`，会从场景元数据读取：
-- Film ISO
-- f-Number
-- Shutter Speed
-
-这些值用于初始化手动曝光参数。
-
-## 7. 色调映射算子
-
-### 7.1 算子列表
-
-| 算子 | 特点 | 参数 |
-|------|------|------|
-| Linear | 无色调映射 | 无 |
-| Reinhard | 经典 Reinhard | 无 |
-| ReinhardModified | Reinhard with white max | `whiteMaxLuminance` |
-| HejiHableAlu | Jim Heji's filmic approximation | 无 |
-| HableUc2 | Uncharted 2 filmic | `whiteScale` |
-| Aces | ACES filmic | 无 |
-
-### 7.2 算子参数
-
-**ReinhardModified**:
-- `mWhiteMaxLuminance`: 白色最大亮度（默认 1.0）
-- 范围：0.1 ~ FLT_MAX
-
-**HableUc2**:
-- `mWhiteScale`: 线性白色缩放（默认 11.2）
-- 范围：0.001 ~ 100
-
-其他算子无需额外参数。
+LuminancePass 用 mpLinearSampler；ToneMapPass 主纹理用 mpPointSampler，AutoExposure 时 gLuminanceTex 用 mpLinearSampler。

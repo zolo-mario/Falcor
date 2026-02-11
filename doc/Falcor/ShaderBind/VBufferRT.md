@@ -185,108 +185,15 @@ defines.add(getValidResourceDefines(kVBufferExtraChannels, renderData));
 
 ## 6. 特殊机制说明
 
-### 6.1 双执行模式
+### 6.1 双执行模式与可选通道
 
-**Ray Tracing 模式**：
-- 使用完整的 DXR pipeline
-- 支持多种几何体类型
-- 适合硬件加速
+RT 模式使用 Scene + Binding Table；Compute 模式使用 `bindShaderDataForRaytracing`。5 个额外通道（depth, mvec, viewW, time, mask）通过 `is_valid_*` defines 控制。DOF 启用时 `COMPUTE_DEPTH_OF_FIELD` 和 PRNG 维度影响 SampleGenerator 绑定。
 
-**Compute 模式**：
-- 使用 TraceRayInline
-- 更灵活
-- 可能性能较低
+### 6.2 输出通道与 Binding
 
-### 6.2 深度场（Depth-of-Field）
+| Channel | 格式 | 可选 |
+|---------|------|------|
+| vbuffer | HitInfo | 否 |
+| depth / mvec / viewW / time / mask | 见绑定表 | 是 |
 
-```cpp
-mComputeDOF = mUseDOF && mpScene->getCamera()->getApertureRadius() > 0.f;
-```
-
-**光线生成**：
-```hlsl
-SampleGenerator sg = SampleGenerator(pixel, frameCount);
-return gScene.camera.computeRayThinlens(pixel, frameDim, sampleNext2D(sg));
-```
-
-**PRNG 维度**：
-- 当启用 DOF 时，使用 2 个 PRNG 维度
-
-### 6.3 可选通道机制
-
-所有 5 个额外通道都是可选的，使用 `is_valid_<name>` defines。
-
-### 6.4 可见性缓冲区存储
-
-**TriangleHit**：
-```hlsl
-TriangleHit triangleHit;
-triangleHit.instanceID = getGeometryInstanceID();
-triangleHit.primitiveIndex = PrimitiveIndex();
-triangleHit.barycentrics = attribs.barycentrics;
-gVBuffer[ipos] = triangleHit.pack();
-```
-
-### 6.5 Alpha Test
-
-**Ray Tracing 模式（anyHit）**：
-```hlsl
-GeometryInstanceID instanceID = getGeometryInstanceID();
-VertexData v = getVertexData(instanceID, PrimitiveIndex(), attribs);
-const uint materialID = gScene.getMaterialID(instanceID);
-if (gScene.materials.alphaTest(v, materialID, 0.f))
-    IgnoreHit();
-```
-
-### 6.6 光线剔除模式
-
-```cpp
-RayFlags rayFlags = RayFlags::None;
-if (mForceCullMode && mCullMode == RasterizerState::CullMode::Front)
-    rayFlags = RayFlags::CullFrontFacingTriangles;
-else if (mForceCullMode && mCullMode == RasterizerState::CullMode::Back)
-    rayFlags = RayFlags::CullBackFacingTriangles;
-```
-
-### 6.7 光线追踪配置
-
-```cpp
-const uint32_t kMaxPayloadSizeBytes = 4;  // 4 bytes dummy
-const uint32_t kMaxRecursionDepth = 1;    // rayGen -> hit
-```
-
-仅需主光线追踪，无递归。
-
-### 6.8 输出通道
-
-| Channel | 格式 | 可选 | 描述 |
-|---------|------|------|------|
-| vbuffer | HitInfo | 否 | 可见性缓冲区 |
-| depth | R32Float | 是 | 深度缓冲区 NDC |
-| mvec | RG32Float | 是 | 屏幕空间运动向量 |
-| viewW | RGBA32Float | 是 | 世界空间视图方向 |
-| time | R32Uint | 是 | 每像素执行时间 |
-| mask | R32Float | 是 | 掩码 |
-
-### 6.9 设备特性要求
-
-```cpp
-if (!mpDevice->isShaderModelSupported(ShaderModel::SM6_5))
-    FALCOR_THROW("VBufferRT requires Shader Model 6.5 support.");
-if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::RaytracingTier1_1))
-    FALCOR_THROW("VBufferRT requires Raytracing Tier 1.1 support.");
-```
-
-### 6.10 与 VBufferRaster 的对比
-
-参见 VBufferRaster.md 的对比表。
-
-### 6.11 与 GBufferRT 的对比
-
-| 特性 | GBufferRT | VBufferRT |
-|------|----------|------------|
-| 主要输出 | 22 UAVs | 6 UAVs |
-| 包含通道 | posW, normW, tangentW, etc. | vbuffer + 5 个可选通道 |
-| 纹理 LOD | Mip0/RayCones/RayDiffs | 不支持 |
-| 材质数据 | 包含 | 不包含 |
-| 用途 | 完整渲染数据 | 几何体可见性 |
+光线剔除通过 `RayFlags` 传入。Payload 4 bytes，递归深度 1。
