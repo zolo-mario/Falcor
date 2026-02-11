@@ -1,0 +1,3288 @@
+# WARDiffPathTracer - Warped-Area Reparameterized Differentiable Path Tracer
+
+## Module State Machine
+
+**Status**: Complete
+
+## Dependency Graph
+
+### Sub-modules (Complete)
+
+- [x] **WARDiffPathTracer** - Warped-area reparameterized differentiable path tracer
+  - [x] **WARDiffPathTracer.h** - WARDiffPathTracer header (205 lines)
+  - [x] **WARDiffPathTracer.cpp** - WARDiffPathTracer implementation (715 lines)
+  - [x] **WARDiffPathTracer.rt.slang** - Ray tracing shader (212 lines)
+  - [x] **Params.slang** - Parameter structures (79 lines)
+  - [x] **PTUtils.slang** - Path tracer utilities (341 lines)
+  - [x] **StaticParams.slang** - Static parameters (53 lines)
+  - [x] **WarpedAreaReparam.slang** - Warped area reparameterization (332 lines)
+
+### External Dependencies
+
+- **Core/API** - Graphics API (Device, RenderContext, Buffer, Texture, Formats)
+- **Core/Object** - Base object class
+- **Core/Program** - Shader program management (Program, RtProgramVars, RtBindingTable)
+- **RenderGraph** - Render graph system (RenderPass, RenderPassReflection, RenderPassHelpers)
+- **Scene** - Scene system (Scene, Camera, Lights, Materials, Geometry)
+- **Utils/Sampling** - Sampling utilities (SampleGenerator)
+- **Utils/Debug** - Debug utilities (PixelDebug)
+- **Rendering/Lights** - Light management (EmissiveLightSampler, LightHelpers)
+- **DiffRendering** - Differentiable rendering (SceneGradients, DiffSceneIO, DiffSceneQuery, DiffDebugParams, InverseOptimizationParams)
+- **Utils/Math** - Mathematical utilities (MathHelpers, MatrixUtils, MathConstants)
+
+## Module Overview
+
+WARDiffPathTracer implements a warped-area reparameterized differentiable path tracer for inverse rendering and gradient-based optimization. This pass uses DXR 1.1 TraceRayInline for ray tracing and implements automatic differentiation through warped-area reparameterization to handle geometric discontinuities. The pass supports multiple sampling techniques including BSDF importance sampling, next-event estimation (NEE), multiple importance sampling (MIS), and antithetic sampling for variance reduction. It implements both forward rendering mode (for gradient visualization) and backward mode (for gradient computation), with material parameter optimization support through mesh-to-optimize parameter updates. The pass integrates with Falcor's scene system, light management, and differentiable rendering infrastructure to provide a complete inverse rendering pipeline.
+
+## Component Specifications
+
+### WARDiffPathTracer Class
+
+**File**: [`WARDiffPathTracer.h`](Source/RenderPasses/WARDiffPathTracer/WARDiffPathTracer.h:46)
+
+**Purpose**: Warped-area reparameterized differentiable path tracer using DXR 1.1 TraceRayInline.
+
+**Public Interface**:
+
+```cpp
+class WARDiffPathTracer : public RenderPass
+{
+public:
+    FALCOR_PLUGIN_CLASS(
+        WARDiffPathTracer,
+        "WARDiffPathTracer",
+        "Warped-area reparameterized differentiable path tracer using DXR 1.1 TraceRayInline."
+    );
+
+    static ref<WARDiffPathTracer> create(ref<Device> pDevice, const Properties& props)
+    {
+        return make_ref<WARDiffPathTracer>(pDevice, props);
+    }
+
+    WARDiffPathTracer(ref<Device> pDevice, const Properties& props);
+
+    Properties getProperties() const override;
+    RenderPassReflection reflect(const CompileData& compileData) override;
+    void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
+    void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
+    void renderUI(Gui::Widgets& widget) override;
+    bool onMouseEvent(const MouseEvent& mouseEvent) override;
+    bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+
+    static void registerBindings(pybind11::module& m);
+
+    // Python bindings
+    const ref<SceneGradients>& getSceneGradients() const { return mpSceneGradients; }
+    void setSceneGradients(const ref<SceneGradients>& sg) { mpSceneGradients = sg; }
+    uint32_t getRunBackward() const { return mParams.runBackward; }
+    void setRunBackward(uint32_t value) { mParams.runBackward = value; }
+    const ref<Buffer>& getdLdI() const { return mpdLdI; }
+    void setdLdI(const ref<Buffer>& buf) { mpdLdI = buf; }
+
+    void setDiffDebugParams(DiffVariableType varType, uint2 id, uint32_t offset, float4 grad);
+    void setInvOptParams(uint32_t meshID) { mInvOptParams.meshID = meshID; }
+
+private:
+    struct TracePass
+    {
+        std::string name;
+        std::string passDefine;
+        ref<Program> pProgram;
+        ref<RtBindingTable> pBindingTable;
+        ref<RtProgramVars> pVars;
+
+        TracePass(
+            ref<Device> pDevice,
+            const std::string& name,
+            const std::string& passDefine,
+            const ref<Scene>& pScene,
+            const DefineList& defines,
+            const TypeConformanceList& globalTypeConformances
+        );
+        void prepareProgram(ref<Device> pDevice, const DefineList& defines);
+    };
+
+    void parseProperties(const Properties& props);
+    void updatePrograms();
+    void setFrameDim(const uint2 frameDim);
+    void prepareResources(RenderContext* pRenderContext, const RenderData& renderData);
+    void prepareDiffPathTracer(const RenderData& renderData);
+    void resetLighting();
+    void prepareMaterials(RenderContext* pRenderContext);
+    bool prepareLighting(RenderContext* pRenderContext);
+    void bindShaderData(const ShaderVar& var, const RenderData& renderData, bool useLightSampling = true) const;
+    bool renderRenderingUI(Gui::Widgets& widget);
+    bool renderDebugUI(Gui::Widgets& widget);
+    bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData);
+    void endFrame(RenderContext* pRenderContext, const RenderData& renderData);
+    void tracePass(RenderContext* pRenderContext, const RenderData& renderData, TracePass& tracePass);
+
+    /**
+     * Static configuration. Changing any of these options require shader recompilation.
+     */
+    struct StaticParams
+    {
+        // Rendering parameters
+
+        /// Number of samples (paths) per pixel, unless a sample density map is used.
+        uint32_t samplesPerPixel = 1;
+        /// Max number of indirect bounces (0 = none).
+        uint32_t maxBounces = 0;
+
+        // Differentiable rendering parameters
+
+        /// Differentiation mode.
+        DiffMode diffMode = DiffMode::ForwardDiffDebug;
+        /// Name of variable to differentiate. Used for rendering forward-mode gradient images.
+        std::string diffVarName = "";
+
+        // Sampling parameters
+
+        /// Pseudorandom sample generator type.
+        uint32_t sampleGenerator = SAMPLE_GENERATOR_TINY_UNIFORM;
+        /// Use BRDF importance sampling, otherwise cosine-weighted hemisphere sampling.
+        bool useBSDFSampling = true;
+        /// Use next-event estimation (NEE). This enables shadow ray(s) from each path vertex.
+        bool useNEE = true;
+        /// Use multiple importance sampling (MIS) when NEE is enabled.
+        bool useMIS = true;
+
+        // WAR parameters
+
+        /// Use warped-area reparameterization (required if there are geometric discontinuities).
+        bool useWAR = true;
+        /// Number of auxiliary samples per primary sample for warped-area reparameterization.
+        uint32_t auxSampleCount = 16;
+        /// Log10 of VMF concentration parameter.
+        float log10vMFConcentration = 5.f;
+        /// Log10 of VMF concentration parameter.
+        float log10vMFConcentrationScreen = 5.f;
+        /// Beta parameter for boundary term.
+        float boundaryTermBeta = 0.01f;
+        /// Use antithetic sampling for variance reduction.
+        bool useAntitheticSampling = true;
+        /// Gamma parameter for harmonic weights.
+        float harmonicGamma = 2.f;
+
+        DefineList getDefines(const WARDiffPathTracer& owner) const;
+    };
+
+    // Configuration
+
+    /// Runtime path tracer parameters.
+    WARDiffPathTracerParams mParams;
+    /// Static parameters. These are set as compile-time constants in shaders.
+    StaticParams mStaticParams;
+    /// Differentiable rendering debug parameters.
+    DiffDebugParams mDiffDebugParams;
+    /// Inverse rendering optimization parameters.
+    InverseOptimizationParams mInvOptParams;
+
+    /// Switch to enable/disable to path tracer. When disabled to pass outputs are cleared.
+    bool mEnabled = true;
+
+    // Internal state
+
+    ref<Scene> mpScene;
+    ref<SampleGenerator> mpSampleGenerator;
+    std::unique_ptr<EmissiveLightSampler> mpEmissiveSampler;
+    std::unique_ptr<PixelDebug> mpPixelDebug;
+
+    ref<SceneGradients> mpSceneGradients;
+    /// Derivatives of loss function w.r.t. image pixel values.
+    ref<Buffer> mpdLdI;
+
+    ref<ParameterBlock> mpDiffPTBlock;
+
+    /// Set to true when program specialization has changed.
+    bool mRecompile = false;
+    /// This is set to true whenever to program vars have changed and resources need to be rebound.
+    bool mVarsChanged = true;
+    /// True if to config has changed since last frame.
+    bool mOptionsChanged = false;
+
+    std::unique_ptr<TracePass> mpTracePass;
+
+    // Runtime data
+
+    /// Set to true when program specialization has changed.
+    bool mRecompile = false;
+    /// This is set to true whenever to program vars have changed and resources need to be rebound.
+    bool mVarsChanged = true;
+    /// True if to config has changed since last frame.
+    bool mOptionsChanged = false;
+};
+```
+
+**Public Members**: None (all members are private)
+
+**Private Members**:
+- `TracePass` struct - Trace pass wrapper
+  - `std::string name` - Pass name
+  - `std::string passDefine` - Pass define
+  - `ref<Program> pProgram` - Program reference
+  - `ref<RtBindingTable> pBindingTable` - Binding table
+  - `ref<RtProgramVars> pVars` - Program variables
+
+**Configuration Members**:
+- `WARDiffPathTracerParams mParams` - Runtime parameters
+- `StaticParams mStaticParams` - Static parameters
+- `DiffDebugParams mDiffDebugParams` - Debug parameters
+- `InverseOptimizationParams mInvOptParams` - Inverse optimization parameters
+- `bool mEnabled` - Enable/disable switch
+- `bool mRecompile` - Recompile flag
+- `bool mVarsChanged` - Vars changed flag
+- `bool mOptionsChanged` - Options changed flag
+
+**Internal State Members**:
+- `ref<Scene> mpScene` - Scene reference
+- `ref<SampleGenerator> mpSampleGenerator` - Sample generator
+- `std::unique_ptr<EmissiveLightSampler> mpEmissiveSampler` - Emissive light sampler
+- `std::unique_ptr<PixelDebug> mpPixelDebug` - Pixel debug
+- `ref<SceneGradients> mpSceneGradients` - Scene gradients
+- `ref<Buffer> mpdLdI` - dLdI buffer
+- `ref<ParameterBlock> mpDiffPTBlock` - Parameter block
+- `std::unique_ptr<TracePass> mpTracePass` - Trace pass
+
+**Private Methods**:
+- `void parseProperties(const Properties& props)` - Parse properties
+- `void updatePrograms()` - Update programs
+- `void setFrameDim(const uint2 frameDim)` - Set frame dimension
+- `void prepareResources(RenderContext* pRenderContext, const RenderData& renderData)` - Prepare resources
+- `void prepareDiffPathTracer(const RenderData& renderData)` - Prepare differentiable path tracer
+- `void resetLighting()` - Reset lighting
+- `void prepareMaterials(RenderContext* pRenderContext)` - Prepare materials
+- `bool prepareLighting(RenderContext* pRenderContext)` - Prepare lighting
+- `void bindShaderData(const ShaderVar& var, const RenderData& renderData, bool useLightSampling = true) const` - Bind shader data
+- `bool renderRenderingUI(Gui::Widgets& widget)` - Render rendering UI
+- `bool renderDebugUI(Gui::Widgets& widget)` - Render debug UI
+- `bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData)` - Begin frame
+- `void endFrame(RenderContext* pRenderContext, const RenderData& renderData)` - End frame
+- `void tracePass(RenderContext* pRenderContext, const RenderData& renderData, TracePass& tracePass)` - Trace pass
+
+**Public Methods**:
+- `Properties getProperties() const override` - Get properties
+- `RenderPassReflection reflect(const CompileData& compileData) override` - Reflect input/output
+- `void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override` - Set scene
+- `void execute(RenderContext* pRenderContext, const RenderData& renderData) override` - Execute pass
+- `void renderUI(Gui::Widgets& widget) override` - Render UI
+- `bool onMouseEvent(const MouseEvent& mouseEvent) override` - Mouse event handler
+- `bool onKeyEvent(const KeyboardEvent& keyEvent) override` - Keyboard event handler
+- `static void registerBindings(pybind11::module& m)` - Register Python bindings
+- `const ref<SceneGradients>& getSceneGradients() const` - Get scene gradients
+- `void setSceneGradients(const ref<SceneGradients>& sg)` - Set scene gradients
+- `uint32_t getRunBackward() const` - Get run backward flag
+- `void setRunBackward(uint32_t value)` - Set run backward flag
+- `const ref<Buffer>& getdLdI() const` - Get dLdI buffer
+- `void setdLdI(const ref<Buffer>& buf)` - Set dLdI buffer
+- `void setDiffDebugParams(DiffVariableType varType, uint2 id, uint32_t offset, float4 grad)` - Set debug params
+- `void setInvOptParams(uint32_t meshID)` - Set inverse optimization params
+
+### WARDiffPathTracer.rt.slang
+
+**File**: [`WARDiffPathTracer.rt.slang`](Source/RenderPasses/WARDiffPathTracer/WARDiffPathTracer.rt.slang:1)
+
+**Purpose**: Ray tracing shader for differentiable path tracing with warped-area reparameterization.
+
+**Features**:
+- Ray generation shader
+- Path tracing with automatic differentiation
+- Warped-area reparameterization
+- Multiple sampling techniques (BSDF, NE E, MIS, antithetic)
+- Gaussian pixel filtering
+- Forward and backward modes
+- Gradient computation
+- Material parameter optimization
+- Scene integration
+- Light integration (emissive, analytic)
+
+**Ray Generation Shader**:
+- Entry point: `rayGen`
+- Pixel dispatch: 16x16x1
+- Screen tile support
+- Primary ray generation
+- Sample generator integration
+- Emissive light support
+- Scene query integration
+
+**Path Tracing Shader**:
+- Entry point: `tracePath` (primary), `tracePaths` (secondary)
+- Warped-area reparameterization
+- Gaussian pixel filtering
+- Antithetic sampling
+- MIS weight computation
+- NEE support
+- Material sampling (BSDF)
+- Light sampling (analytic, emissive)
+- Gradient computation
+- Forward mode (for visualization)
+- Backward mode (for gradient computation)
+
+### Params.slang
+
+**File**: [`Params.slang`](Source/RenderPasses/WARDiffPathTracer/Params.slang:1)
+
+**Purpose**: Path tracer parameters shared between host and device.
+
+**Features**:
+- Host-device shared parameters
+- Rendering parameters (samplesPerPixel, maxBounces)
+- Differentiable rendering parameters (diffMode, diffVarName)
+- Sampling parameters (sampleGenerator, useBSDFSampling, useNEE, useMIS)
+- WAR parameters (useWAR, auxSampleCount, log10vMFConcentration, log10vMFConcentrationScreen, boundaryTermBeta, useAntitheticSampling, harmonicGamma)
+- Runtime values (frameDim, screenTiles, frameCount, seed, _pad0)
+
+**WARDiffPathTracerParams Struct**:
+- `int useFixedSeed` - Fixed seed flag
+- `uint fixedSeed` - Fixed seed value
+- `uint2 frameDim` - Frame dimension
+- `uint2 screenTiles` - Screen tiles
+- `uint frameCount` - Frame count
+
+**StaticParams Struct**:
+- `uint samplesPerPixel` - Samples per pixel
+- `uint maxBounces` - Max bounces
+- `DiffMode diffMode` - Differentiation mode
+- `string diffVarName` - Diff variable name
+- `uint sampleGenerator` - Sample generator type
+- `bool useBSDFSampling` - BSDF sampling flag
+- `bool useNEE` - Next-event estimation flag
+- `bool useMIS` - Multiple importance sampling flag
+- `bool useWAR` - Warped-area reparameterization flag
+- `uint auxSampleCount` - Auxiliary sample count
+- `float log10vMFConcentration` - VMF concentration (log10)
+- `float log10vMFConcentrationScreen` - Screen-space VMF concentration (log10)
+- `float boundaryTermBeta` - Boundary term beta
+- `bool useAntitheticSampling` - Antithetic sampling flag
+- `float harmonicGamma` - Harmonic gamma
+
+### PTUtils.slang
+
+**File**: [`PTUtils.slang`](Source/RenderPasses/WARDiffPathTracer/PTUtils.slang:1)
+
+**Purpose**: Path tracer utilities for differentiable rendering.
+
+**Features**:
+- Path data structure (radiance, throughput, normal, pdf, length, terminated)
+- Light sample structure (Li, pdf, origin, distance, dir)
+- Shading data loading
+- Material instance creation
+- Material gradient propagation
+- Antithetic sampling
+- Gaussian pixel filtering
+- MIS weight computation
+- Next-event estimation
+- Warped-area reparameterization
+- Forward and backward mode support
+
+**PathData Struct**:
+- `float3 radiance` - Path radiance
+- `float3 thp` - Throughput
+- `float3 normal` - Surface normal
+- `float pdf` - PDF
+- `uint length` - Path length
+- `bool terminated` - Termination flag
+
+**LightSample Struct**:
+- `float3 Li` - Incident radiance
+- `float pdf` - PDF with respect to solid angle
+- `float3 origin` - Ray origin (offset to avoid self-intersection)
+- `float3 dir` - Ray direction (normalized)
+- `float distance` - Ray distance (shortened to avoid self-intersection)
+
+**ShadingData Functions**:
+- `loadShadingData()` - Load shading data for triangle hits
+- `IMaterialInstance getDiffMaterialInstance()` - Create differentiable material instance
+
+### StaticParams.slang
+
+**File**: [`StaticParams.slang`](Source/RenderPasses/WARDiffPathTracer/StaticParams.slang:1)
+
+**Purpose**: Static configuration constants for path tracer.
+
+**Features**:
+- Host-device shared parameter definitions
+- Sample count limits
+- Frame dimension limits
+- Bounce limits
+- Light sample limits
+- Diff mode definitions
+- Sampling mode definitions
+- WAR parameter definitions
+- Antithetic sampling definitions
+
+**Constants**:
+- `SAMPLES_PER_PIXEL` - Maximum samples per pixel (16)
+- `MAX_BOUNCES` - Maximum bounces (255)
+- `MAX_FRAME_DIMENSION` - Maximum frame dimension (4096)
+- `MAX_LIGHT_SAMPLES_PER_VERTEX` - Maximum light samples per vertex (8)
+- `BOUNCE_LIMIT` - Bounce limit (254)
+
+**DiffMode Enum**:
+- `Primal` - Forward rendering mode
+- `BackwardDiff` - Backward mode for gradient computation
+- `ForwardDiffDebug` - Forward debug mode for gradient visualization
+- `BackwardDiffDebug` - Backward debug mode
+
+### WarpedAreaReparam.slang
+
+**File**: [`WarpedAreaReparam.slang`](Source/RenderPasses/WARDiffPathTracer/WarpedAreaReparam.slang:1)
+
+**Purpose**: Warped-area reparameterization utilities for differentiable rendering.
+
+**Features**:
+- Boundary term computation
+- Harmonic weight computation
+- VMF concentration computation
+- Forward derivative computation
+- Jacobian determinant computation
+- Screen space projection
+- Auxiliary sample generation
+
+**Functions**:
+- `computeBoundaryTerm()` - Compute boundary term for VMF
+- `computeHarmonicWeight()` - Compute harmonic weight
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `fwd_computeHarmonicWeightPair()` - Forward harmonic weight pair
+- `reparameterizeRay()` - Warped-area reparameterization
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `traceAsymptoticWeightedMeanIntersection()` - Asymptotic weighted mean intersection
+- `tracePaths()` - Trace paths (primary)
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimitiveSample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `screen space projection
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+-sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+-sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalGaussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+- `fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+- `fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+- `bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+- `tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+- `fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+-sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+-evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+- `fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+-generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+- `computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+- `reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySample()` - Forward primary sample
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample pair
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+- `evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+-fwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+-fwd_diff()` - Forward derivative
+-bwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+-generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+fwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+-sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+- `evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+fwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+- `sampleGaussian()` - Gaussian pixel filter
+- `sampleNext1D()` - 1D sample
+- `sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+-evalPdf()` - PDF evaluation
+-computeNEE()` - Next-event estimation
+- `generateEmissiveSample()` - Emissive light sample
+-reparameterizeScreenSample()` - Screen sample reparameterization
+-fwd_computeWarpedPrimarySamplePair()` - Forward primary sample
+fwd_diff()` - Backward derivative
+-tracePaths()` - Trace paths (secondary)
+-fwd_computeHarmonicWeight()` - Forward harmonic weight
+-sampleGaussian()` - Gaussian pixel filter
+-sampleNext1D()` - 1D sample
+-sampleNext2D()` - 2D sample
+- `evalgauussian()` - Gaussian evaluation
+-evalMIS()` - MIS evaluation
+-evalPdf()` - PDF evaluation
+`
