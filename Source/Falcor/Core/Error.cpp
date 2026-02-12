@@ -21,6 +21,7 @@ void throwException(const fstd::source_location& loc, std::string_view msg)
         debugBreak();
 
     logErrorOnce(fullMsg);
+    exit(1);
 }
 
 void reportAssertion(const fstd::source_location& loc, std::string_view cond, std::string_view msg)
@@ -36,6 +37,7 @@ void reportAssertion(const fstd::source_location& loc, std::string_view cond, st
         debugBreak();
 
     logErrorOnce(fullMsg);
+    exit(1);
 }
 
 //
