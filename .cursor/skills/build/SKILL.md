@@ -1,5 +1,5 @@
 ---
-name: falcor-build
+name: build
 description: Build the Falcor rendering framework and its plugins. Use when the user asks to build, compile, rebuild Falcor, build a specific render pass or plugin, or run build-related commands.
 ---
 
@@ -7,14 +7,19 @@ description: Build the Falcor rendering framework and its plugins. Use when the 
 
 ## Quick Start
 
-Build everything:
+**Build all** (from repo root):
 ```bash
-cmake --build build/windows-vs2022 --config Debug -DCMAKE_MESSAGE_LOG_LEVEL=ERROR
+cmake --build build/windows-vs2022 --config Debug
 ```
 
-Build a specific target (e.g., GBuffer, PathTracer):
+**Build specific target** (e.g., GBuffer, PathTracer):
 ```bash
 cmake --build build/windows-vs2022 --config Debug --target <TARGET_NAME>
+```
+
+**One-liner** (configure + build):
+```bash
+build_vs2022.bat
 ```
 
 ## Configuration
@@ -26,8 +31,10 @@ cmake --build build/windows-vs2022 --config Debug --target <TARGET_NAME>
 
 ## Common Targets
 
-- **RenderPasses**: GBuffer, PathTracer, RTXDIPass, TAA, ToneMapper, AccumulatePass, SVGFPass, DLSSPass, DebugPasses, Utils
-- **Apps**: Mogwai, FalcorTest, ImageCompare, RenderGraphEditor
+| Category | Examples |
+|----------|----------|
+| RenderPasses | GBuffer, PathTracer, RTXDIPass, TAA, ToneMapper, AccumulatePass, SVGFPass, DLSSPass, DebugPasses, Utils |
+| Apps | Mogwai, FalcorTest, ImageCompare, RenderGraphEditor |
 
 Target name = folder name in Source/RenderPasses (e.g., `GBuffer`, `PathTracer`).
 
@@ -38,17 +45,16 @@ If the build directory does not exist or CMake cache is outdated:
 cmake --preset windows-vs2022 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 ```
 
-## Run Tests (Example)
+## Build Output Paths
 
-VBufferMeshletRaster headless test:
-```bash
-./build/windows-vs2022/bin/Debug/Mogwai.exe --script "F:/Falcor/Source/RenderPasses/GBuffer/VBuffer/VBufferMeshletRasterTest.py" --scene "F:/Falcor/media/test_scenes/bunny.pyscene" --headless
-```
-
-Adjust the script path and `--config` (Debug/Release) as needed.
+| Config | Path |
+|--------|------|
+| Debug | `build/windows-vs2022/bin/Debug/` |
+| Release | `build/windows-vs2022/bin/Release/` |
 
 ## Tips
 
-- Use `-DCMAKE_MESSAGE_LOG_LEVEL=ERROR` to reduce CMake output noise.
-- On Windows, run from the repo root (e.g., `F:/Falcor`).
-- Dependencies are managed via packman; ensure `tools/packman` packages are installed before building.
+- Run from repo root (e.g., `c:/Falcor` or `F:/Falcor`).
+- If `cmake` is not in PATH, use packman's: `tools/.packman/cmake/bin/cmake.exe`.
+- Dependencies: ensure `tools/packman` packages are installed (run `setup.bat` if needed).
+- After building: run tests or Mogwai via the run skill.
