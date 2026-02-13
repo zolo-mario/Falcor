@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, execute tests, run image tests, run unit tests, run Python tests, run a headless script, or launch Falcor applications.
+description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, or launch Falcor applications.
 ---
 
 # Falcor Run
@@ -38,7 +38,12 @@ Swap `Debug` for `Release` if built with that config.
 ```bash
 tests/run_unit_tests.bat
 ```
-Options: `--config Debug|Release`, `--environment <json>`, `--list-configs`
+Options: `--config Debug|Release`, `--environment <json>`, `--list-configs`, `--test-suite <regex>`, `--test-case <regex>`, `--tags <tags>`
+
+**Run specific test suites** (e.g., SlangUserGuide):
+```bash
+tests/run_unit_tests.bat --test-suite HelloWorldTests
+```
 
 **Image tests** (Mogwai-based):
 ```bash
@@ -70,3 +75,4 @@ Executables: `Mogwai.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEdi
 - Run `.bat` files from repo root; they resolve `tools/.packman/python` and `tests/testing/` automatically.
 - If packman Python is missing, run `setup.bat` first.
 - Image tests use `tests/environment/default.json` unless overridden.
+- **SlangUserGuide** tests live in `Source/Tools/FalcorTest/SlangUserGuide/`; run with `--test-suite HelloWorldTests` (suite name = source filename without extension).

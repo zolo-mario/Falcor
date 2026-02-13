@@ -58,3 +58,4 @@ cmake --preset windows-vs2022 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 - If `cmake` is not in PATH, use packman's: `tools/.packman/cmake/bin/cmake.exe`.
 - Dependencies: ensure `tools/packman` packages are installed (run `setup.bat` if needed).
 - After building: run tests or Mogwai via the run skill.
+- FalcorTest includes SlangUserGuide shader examples and tests (`Source/Tools/FalcorTest/SlangUserGuide/`).

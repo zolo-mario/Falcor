@@ -3,6 +3,9 @@ add_falcor_executable(FalcorTest)
 target_sources(FalcorTest PRIVATE
     FalcorTest.cpp
 
+    SlangUserGuide/01-get-started/hello-world.slang
+    SlangUserGuide/01-get-started/HelloWorldTests.cpp
+
     Testing/UnitTest.cpp
     Testing/UnitTest.cs.slang
     Testing/UnitTest.h
