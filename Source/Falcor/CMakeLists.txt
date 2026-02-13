@@ -528,6 +528,7 @@ target_sources(Falcor PRIVATE
     Utils/BinaryFileStream.h
     Utils/BufferAllocator.cpp
     Utils/BufferAllocator.h
+    Utils/CrashHandler.h
     Utils/CryptoUtils.cpp
     Utils/CryptoUtils.h
     Utils/Dictionary.h

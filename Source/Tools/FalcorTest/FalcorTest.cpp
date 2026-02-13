@@ -1,4 +1,5 @@
 #include "Core/Error.h"
+#include "Utils/CrashHandler.h"
 #include "Utils/StringUtils.h"
 #include "Testing/UnitTest.h"
 
@@ -147,5 +148,6 @@ int runMain(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+    Falcor::CrashHandler::Install();
     return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
 }

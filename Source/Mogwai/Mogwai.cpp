@@ -1,5 +1,6 @@
 #include "Falcor.h"
 #include "Mogwai.h"
+#include "Utils/CrashHandler.h"
 #include "MogwaiSettings.h"
 #include "GlobalState.h"
 #include "Core/AssetResolver.h"
@@ -943,5 +944,6 @@ int runMain(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+    Falcor::CrashHandler::Install();
     return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
 }

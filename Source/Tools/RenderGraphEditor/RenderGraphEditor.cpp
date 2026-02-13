@@ -1,5 +1,6 @@
 #include "RenderGraphEditor.h"
 #include "RenderGraph/RenderGraph.h"
+#include "Utils/CrashHandler.h"
 #include "RenderGraph/RenderGraphImportExport.h"
 #include "GlobalState.h"
 
@@ -498,6 +499,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 int main(int argc, char** argv)
 #endif
 {
+    Falcor::CrashHandler::Install();
     args::ArgumentParser parser("Render graph editor.");
     parser.helpParams.programName = "RenderGraphEditor";
     args::HelpFlag helpFlag(parser, "help", "Display this help menu.", {'h', "help"});
