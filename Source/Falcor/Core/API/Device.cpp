@@ -687,7 +687,11 @@ Device::~Device()
 
 #if FALCOR_HAS_D3D12
 #if FALCOR_ENABLE_PROFILER
-    TracyD3D12Destroy(mTracyD3D12Ctx);
+    if (mTracyD3D12Ctx)
+    {
+        TracyD3D12Destroy(mTracyD3D12Ctx);
+        mTracyD3D12Ctx = nullptr;
+    }
 #endif
     mpD3D12CpuDescPool.reset();
     mpD3D12GpuDescPool.reset();
