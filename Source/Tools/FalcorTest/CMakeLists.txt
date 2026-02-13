@@ -6,6 +6,9 @@ target_sources(FalcorTest PRIVATE
     SlangUserGuide/01-get-started/hello-world.slang
     SlangUserGuide/01-get-started/HelloWorldTests.cpp
 
+    SlangUserGuide/02-conventional-features/conventional-features.slang
+    SlangUserGuide/02-conventional-features/ConventionalFeaturesTests.cpp
+
     Testing/UnitTest.cpp
     Testing/UnitTest.cs.slang
     Testing/UnitTest.h
