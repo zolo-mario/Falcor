@@ -68,13 +68,14 @@ static std::vector<std::filesystem::path> gDataDirectories = getInitialDataDirec
 
 bool isDevelopmentMode()
 {
-    static bool devMode = []()
-    {
-        auto value = getEnvironmentVariable("FALCOR_DEVMODE");
-        return value && *value == "1";
-    }();
-
-    return devMode;
+    // Hardcoded for development: always use Source folder for shaders.
+    return true;
+    // static bool devMode = []()
+    // {
+    //     auto value = getEnvironmentVariable("FALCOR_DEVMODE");
+    //     return value && *value == "1";
+    // }();
+    // return devMode;
 }
 
 bool isSamePath(const std::filesystem::path& lhs, const std::filesystem::path& rhs)

@@ -217,31 +217,32 @@ set(SHADER_EXTENSION_REGEX "\.(slang|slangh|hlsli|hlsl)$")
 
 # Setup build rules to copy all shaders of a target to the output directory.
 # The specified output_dir is relative to the global shader output directory (FALCOR_SHADER_OUTPUT_DIRECTORY).
+# TEMPORARILY DISABLED: shader copy skipped (use development mode to load from Source/)
 function(target_copy_shaders target output_dir)
-    get_target_property(target_source_dir ${target} SOURCE_DIR)
-    set(shader_output_dir ${FALCOR_SHADER_OUTPUT_DIRECTORY}/${output_dir})
+    # get_target_property(target_source_dir ${target} SOURCE_DIR)
+    # set(shader_output_dir ${FALCOR_SHADER_OUTPUT_DIRECTORY}/${output_dir})
 
-    # Get list of all target sources.
-    get_target_property(target_sources_ ${target} SOURCES)
+    # # Get list of all target sources.
+    # get_target_property(target_sources_ ${target} SOURCES)
 
-    # Create custom commands for copying shader sources.
-    foreach(file ${target_sources_})
-        if(${file} MATCHES ${SHADER_EXTENSION_REGEX})
-            if(IS_ABSOLUTE ${file})
-                file(RELATIVE_PATH file ${target_source_dir} ${file})
-            endif()
+    # # Create custom commands for copying shader sources.
+    # foreach(file ${target_sources_})
+    #     if(${file} MATCHES ${SHADER_EXTENSION_REGEX})
+    #         if(IS_ABSOLUTE ${file})
+    #             file(RELATIVE_PATH file ${target_source_dir} ${file})
+    #         endif()
 
-            set(src_file ${target_source_dir}/${file})
-            set(dst_file ${shader_output_dir}/${file})
+    #         set(src_file ${target_source_dir}/${file})
+    #         set(dst_file ${shader_output_dir}/${file})
 
-            add_custom_command(
-                OUTPUT ${dst_file}
-                COMMAND ${CMAKE_COMMAND} ARGS -E copy_if_different ${src_file} ${dst_file}
-                MAIN_DEPENDENCY ${src_file}
-                COMMENT "${target}: Copying shader ${file}"
-            )
-        endif()
-    endforeach()
+    #         add_custom_command(
+    #             OUTPUT ${dst_file}
+    #             COMMAND ${CMAKE_COMMAND} ARGS -E copy_if_different ${src_file} ${dst_file}
+    #             MAIN_DEPENDENCY ${src_file}
+    #             COMMENT "${target}: Copying shader ${file}"
+    #         )
+    #     endif()
+    # endforeach()
 endfunction()
 
 # -----------------------------------------------------------------------------
