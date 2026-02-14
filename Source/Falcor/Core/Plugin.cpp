@@ -116,7 +116,8 @@ void PluginManager::loadAllPlugins()
 
 void PluginManager::releaseAllPlugins()
 {
-    while (true)
+    // Disabled: releasing plugins in a loop hangs on certain DLLs (e.g., dlss.dll).
+    while (0)
     {
         std::filesystem::path path;
         {
