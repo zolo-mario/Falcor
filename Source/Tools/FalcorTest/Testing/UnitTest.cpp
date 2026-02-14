@@ -589,6 +589,8 @@ std::vector<Test> filterTests(
 
     for (auto&& test : tests)
     {
+        if (test.suiteName == "UnitTest.cpp")
+            continue;
         if (!testSuiteFilter.empty() && !std::regex_search(test.suiteName, suiteFilterRegex))
             continue;
         if (!testCaseFilter.empty() && !std::regex_search(test.name, testFilterRegex))
