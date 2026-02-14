@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, or launch Falcor applications.
+description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
 ---
 
 # Falcor Run
@@ -15,6 +15,7 @@ description: Run Falcor applications, tests, and scripts. Use when the user asks
 | View image test results | `tests/view_image_tests.bat` |
 | Mogwai headless script | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
 | Mogwai interactive | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
+| Packman Python (balls.py etc.) | `tools/.packman/python/python.exe` with `PYTHONPATH` and `PATH` set |
 
 Run `.bat` scripts from the project root (e.g., `F:/Falcor`).
 
@@ -69,6 +70,26 @@ tests/view_image_tests.bat
 | Release | `build/windows-vs2022/bin/Release/` |
 
 Executables: `Mogwai.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`
+
+## Packman Python (Falcor Python scripts)
+
+Scripts like `scripts/python/balls/balls.py` use the `falcor` module from the build output. Run with packman Python:
+
+```bash
+# From project root; requires Falcor built (build/windows-vs2022/bin/Debug/python/falcor exists)
+set PYTHONPATH=build\windows-vs2022\bin\Debug\python;%PYTHONPATH%
+set PATH=build\windows-vs2022\bin\Debug;build\windows-vs2022\bin\Debug\plugins;%PATH%
+tools\.packman\python\python.exe scripts\python\balls\balls.py
+```
+
+PowerShell:
+```powershell
+$env:PYTHONPATH = "F:\Falcor\build\windows-vs2022\bin\Debug\python;$env:PYTHONPATH"
+$env:PATH = "F:\Falcor\build\windows-vs2022\bin\Debug;F:\Falcor\build\windows-vs2022\bin\Debug\plugins;$env:PATH"
+.\tools\.packman\python\python.exe scripts\python\balls\balls.py
+```
+
+Alternative: `scripts/python/balls/run_balls.bat` (uses `uv run` if available).
 
 ## Tips
 
