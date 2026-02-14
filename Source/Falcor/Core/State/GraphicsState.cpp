@@ -70,8 +70,8 @@ ref<GraphicsStateObject> GraphicsState::getGSO(const ProgramVars* pVars)
     {
         mDesc.pProgramKernels = pProgramKernels;
         mDesc.fboDesc = mpFbo ? mpFbo->getDesc() : Fbo::Desc();
-        mDesc.pVertexLayout = mpVao->getVertexLayout();
-        mDesc.primitiveType = topology2Type(mpVao->getPrimitiveTopology());
+        mDesc.pVertexLayout = mpVao ? mpVao->getVertexLayout() : nullptr;
+        mDesc.primitiveType = mpVao ? topology2Type(mpVao->getPrimitiveTopology()) : GraphicsStateObjectDesc::PrimitiveType::Triangle;
 
         GraphicsStateGraph::CompareFunc cmpFunc = [&desc = mDesc](ref<GraphicsStateObject> pGso) -> bool
         { return pGso && (desc == pGso->getDesc()); };

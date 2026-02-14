@@ -233,7 +233,35 @@ public:
         void** outPipelineState
     )
     {
-        FALCOR_THROW("Mesh pipelines are not supported.");
+        gfx::IDevice::InteropHandles nativeHandle;
+        FALCOR_GFX_CALL(device->getNativeDeviceHandles(&nativeHandle));
+        ID3D12Device* pD3D12Device = reinterpret_cast<ID3D12Device*>(nativeHandle.handles[0].handleValue);
+
+        uint32_t space, registerId;
+        if (findNvApiShaderParameter(program, space, registerId))
+        {
+            NvApiPsoExDesc psoDesc = {};
+            createNvApiUavSlotExDesc(psoDesc, space, registerId);
+            const NVAPI_D3D12_PSO_EXTENSION_DESC* ppPSOExtensionsDesc[1] = {&psoDesc.mExtSlotDesc};
+
+            auto result = NvAPI_D3D12_CreateGraphicsPipelineState(
+                pD3D12Device,
+                reinterpret_cast<D3D12_GRAPHICS_PIPELINE_STATE_DESC*>(pipelineDesc),
+                1,
+                ppPSOExtensionsDesc,
+                (ID3D12PipelineState**)outPipelineState
+            );
+            return (result == NVAPI_OK) ? SLANG_OK : SLANG_FAIL;
+        }
+        else
+        {
+            ID3D12PipelineState* pState = nullptr;
+            SLANG_RETURN_ON_FAIL(pD3D12Device->CreateGraphicsPipelineState(
+                reinterpret_cast<D3D12_GRAPHICS_PIPELINE_STATE_DESC*>(pipelineDesc), IID_PPV_ARGS(&pState)
+            ));
+            *outPipelineState = pState;
+        }
+        return SLANG_OK;
     }
 
     // This method will be called by the gfx layer right before creating a ray tracing state object.

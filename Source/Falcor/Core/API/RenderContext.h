@@ -216,6 +216,21 @@ public:
     );
 
     /**
+     * Draw mesh tasks (mesh shader pipeline).
+     * Dispatches mesh shader groups. Use with GraphicsState that has mesh+pixel shader and no VAO.
+     * @param[in] groupCountX Number of mesh shader groups in X dimension
+     * @param[in] groupCountY Number of mesh shader groups in Y dimension
+     * @param[in] groupCountZ Number of mesh shader groups in Z dimension
+     */
+    void drawMeshTasks(
+        GraphicsState* pState,
+        ProgramVars* pVars,
+        uint32_t groupCountX,
+        uint32_t groupCountY,
+        uint32_t groupCountZ
+    );
+
+    /**
      * Blits (low-level copy) an SRV into an RTV.
      * The source and destination rectangles get clamped to the dimensions of the view.
      * The upper range is non-inclusive. To blit from the top-left 16x16 texels, specify srcRect = uint4(0,0,16,16).
@@ -304,6 +319,7 @@ private:
     RenderContext(gfx::ICommandQueue* pQueue);
 
     gfx::IRenderCommandEncoder* drawCallCommon(GraphicsState* pState, ProgramVars* pVars);
+    gfx::IRenderCommandEncoder* drawMeshTasksCallCommon(GraphicsState* pState, ProgramVars* pVars);
 
     std::unique_ptr<BlitContext> mpBlitContext;
 

@@ -334,6 +334,8 @@ target_sources(Falcor PRIVATE
     Scene/RaytracingInline.slang
     Scene/Scene.cpp
     Scene/Scene.h
+    Scene/SceneMeshletData.cpp
+    Scene/SceneMeshletData.h
     Scene/Scene.slang
     Scene/SceneBlock.slang
     Scene/SceneBuilder.cpp
@@ -972,7 +974,7 @@ target_link_libraries(Falcor
         $<$<BOOL:${FALCOR_ENABLE_PROFILER}>:TracyClient>
     PRIVATE
         git_version
-        FreeImage assimp OpenEXR OpenVDB lz4 zlib pugixml opensubdiv
+        FreeImage assimp OpenEXR OpenVDB lz4 zlib pugixml opensubdiv meshoptimizer
         glfw mikktspace nvtt
         $<$<BOOL:${FALCOR_HAS_D3D12}>:d3d12>
         $<$<BOOL:${FALCOR_HAS_D3D12_AGILITY_SDK}>:agility-sdk>

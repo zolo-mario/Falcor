@@ -48,6 +48,7 @@ namespace Falcor
     struct GamepadState;
 
     class RtProgramVars;
+    class SceneMeshletData;
 
     /** This class is the main scene representation.
         It holds all scene resources such as geometry, cameras, lights, and materials.
@@ -633,6 +634,13 @@ namespace Falcor
         */
         void getMeshVerticesAndIndices(MeshID meshID, const std::map<std::string, ref<Buffer>>& buffers);
 
+        /** Get meshlet data for mesh shader rendering. Builds lazily on first access.
+            Supports multiple mesh instances. Returns nullptr if no triangle mesh geometry.
+            \param[in] pRenderContext Render context for building.
+            \return SceneMeshletData with GPU buffers, or nullptr.
+        */
+        SceneMeshletData* getMeshletData(RenderContext* pRenderContext);
+
         /** Set mesh vertex data and update the acceleration structures.
             \param[in] meshID Mesh ID.
             \param[in] buffers Map of buffers containing mesh data: "positions", "normals", "tangents", and "texcrds" are required.
@@ -1195,6 +1203,7 @@ namespace Falcor
         void bindParameterBlock();
 
         Scene(ref<Device> pDevice, SceneData&& sceneData);
+        ~Scene();
 
         ref<Device> mpDevice; ///< GPU device the scene resides on.
 
@@ -1227,6 +1236,8 @@ namespace Falcor
         std::vector<MeshGroup> mMeshGroups;                         ///< Groups of meshes. Each group maps to a BLAS for ray tracing.
         std::vector<std::string> mMeshNames;                        ///< Mesh names, indxed by mesh ID
         std::vector<Node> mSceneGraph;                              ///< For each index i, the array element indicates the parent node. Indices are in relation to mLocalToWorldMatrices.
+
+        std::unique_ptr<SceneMeshletData> mpMeshletData;            ///< Meshlet data for mesh shader rendering (built lazily).
 
         /// For Python bindings of triangle meshes.
         ref<ComputePass> mpLoadMeshPass;

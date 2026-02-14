@@ -502,6 +502,19 @@ void RenderContext::drawIndexedIndirect(
     mCommandsPending = true;
 }
 
+void RenderContext::drawMeshTasks(
+    GraphicsState* pState,
+    ProgramVars* pVars,
+    uint32_t groupCountX,
+    uint32_t groupCountY,
+    uint32_t groupCountZ
+)
+{
+    auto encoder = drawMeshTasksCallCommon(pState, pVars);
+    FALCOR_GFX_CALL(encoder->drawMeshTasks(groupCountX, groupCountY, groupCountZ));
+    mCommandsPending = true;
+}
+
 void RenderContext::raytrace(Program* pProgram, RtProgramVars* pVars, uint32_t width, uint32_t height, uint32_t depth)
 {
     auto pRtso = pProgram->getRtso(pVars);
@@ -668,6 +681,34 @@ gfx::IRenderCommandEncoder* RenderContext::drawCallCommon(GraphicsState* pState,
             encoder->setIndexBuffer(indexBuffer->getGfxBufferResource(), getGFXFormat(pVao->getIndexBufferFormat()));
         }
         encoder->setPrimitiveTopology(getGFXPrimitiveTopology(pVao->getPrimitiveTopology()));
+        encoder->setViewports(
+            (uint32_t)pState->getViewports().size(), reinterpret_cast<const gfx::Viewport*>(pState->getViewports().data())
+        );
+        encoder->setScissorRects(
+            (uint32_t)pState->getScissors().size(), reinterpret_cast<const gfx::ScissorRect*>(pState->getScissors().data())
+        );
+    }
+
+    return encoder;
+}
+
+gfx::IRenderCommandEncoder* RenderContext::drawMeshTasksCallCommon(GraphicsState* pState, ProgramVars* pVars)
+{
+    pVars->prepareDescriptorSets(this);
+    ensureFboAttachmentResourceStates(this, pState->getFbo().get());
+
+    auto pGso = pState->getGSO(pVars).get();
+
+    bool isNewEncoder = false;
+    auto encoder = getLowLevelData()->getRenderCommandEncoder(
+        pGso->getGFXRenderPassLayout(), pState->getFbo() ? pState->getFbo()->getGfxFramebuffer() : nullptr, isNewEncoder
+    );
+
+    FALCOR_GFX_CALL(encoder->bindPipelineWithRootObject(pGso->getGfxPipelineState(), pVars->getShaderObject()));
+
+    if (isNewEncoder || pGso != mpLastBoundGraphicsStateObject)
+    {
+        mpLastBoundGraphicsStateObject = pGso;
         encoder->setViewports(
             (uint32_t)pState->getViewports().size(), reinterpret_cast<const gfx::Viewport*>(pState->getViewports().data())
         );

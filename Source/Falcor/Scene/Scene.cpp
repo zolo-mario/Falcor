@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include "SceneMeshletData.h"
 #include "SceneDefines.slangh"
 #include "SceneBuilder.h"
 #include "Importer.h"
@@ -251,6 +252,8 @@ namespace Falcor
     {
         return ref<Scene>(new Scene(pDevice, std::move(sceneData)));
     }
+
+    Scene::~Scene() = default;
 
     void Scene::updateSceneDefines()
     {
@@ -4051,6 +4054,18 @@ namespace Falcor
         mpLoadMeshPass->execute(mpDevice->getRenderContext(), std::max(meshDesc.vertexCount, meshDesc.getTriangleCount()), 1, 1);
     }
 
+    SceneMeshletData* Scene::getMeshletData(RenderContext* pRenderContext)
+    {
+        if (!pRenderContext || getMeshCount() == 0 || getGeometryInstanceCount() == 0)
+            return nullptr;
+
+        if (!mpMeshletData)
+            mpMeshletData = std::make_unique<SceneMeshletData>(mpDevice, this);
+
+        mpMeshletData->build(pRenderContext);
+        return mpMeshletData->isValid() ? mpMeshletData.get() : nullptr;
+    }
+
     void Scene::setMeshVertices(MeshID meshID, const std::map<std::string, ref<Buffer>>& buffers)
     {
         if (!mpUpdateMeshPass)
@@ -4069,6 +4084,9 @@ namespace Falcor
         }
 
         mpUpdateMeshPass->execute(mpDevice->getRenderContext(), meshDesc.vertexCount, 1, 1);
+
+        // Invalidate meshlet data when mesh vertices change.
+        mpMeshletData.reset();
 
         // Update BLAS/TLAS.
         updateForInverseRendering(mpDevice->getRenderContext(), false, true);
