@@ -13,7 +13,7 @@ namespace
 {
 std::mutex sMutex;
 Logger::Level sVerbosity = Logger::Level::Info;
-Logger::OutputFlags sOutputs = Logger::OutputFlags::Console | Logger::OutputFlags::File | Logger::OutputFlags::DebugWindow;
+const Logger::OutputFlags sOutputs = Logger::OutputFlags::Console | Logger::OutputFlags::File;
 std::filesystem::path sLogFilePath;
 
 bool sInitialized = false;
@@ -166,7 +166,7 @@ Logger::Level Logger::getVerbosity()
 void Logger::setOutputs(OutputFlags outputs)
 {
     std::lock_guard<std::mutex> lock(sMutex);
-    sOutputs = outputs;
+    // sOutputs = outputs;
 }
 
 Logger::OutputFlags Logger::getOutputs()
