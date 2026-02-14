@@ -59,6 +59,8 @@ enum class ShaderType
     ClosestHit,    ///< Closest hit shader
     Miss,          ///< Miss shader
     Callable,      ///< Callable shader
+    Mesh,          ///< Mesh shader
+    Amplification, ///< Amplification shader (task shader)
     Count          ///< Shader Type count
 };
 FALCOR_ENUM_INFO(
@@ -76,6 +78,8 @@ FALCOR_ENUM_INFO(
         {ShaderType::ClosestHit, "ClosestHit"},
         {ShaderType::Miss, "Miss"},
         {ShaderType::Callable, "Callable"},
+        {ShaderType::Mesh, "Mesh"},
+        {ShaderType::Amplification, "Amplification"},
     }
 );
 FALCOR_ENUM_REGISTER(ShaderType);

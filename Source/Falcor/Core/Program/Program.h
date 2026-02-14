@@ -351,6 +351,8 @@ struct ProgramDesc
     ProgramDesc& gsEntry(const std::string& name) { return addEntryPoint(ShaderType::Geometry, name); }
     ProgramDesc& psEntry(const std::string& name) { return addEntryPoint(ShaderType::Pixel, name); }
     ProgramDesc& csEntry(const std::string& name) { return addEntryPoint(ShaderType::Compute, name); }
+    ProgramDesc& meshEntry(const std::string& name) { return addEntryPoint(ShaderType::Mesh, name); }
+    ProgramDesc& amplificationEntry(const std::string& name) { return addEntryPoint(ShaderType::Amplification, name); }
 
     /// Checks if the program description has at least one entry point of a given type.
     bool hasEntryPoint(ShaderType stage) const

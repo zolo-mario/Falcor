@@ -9,6 +9,11 @@ target_sources(FalcorTest PRIVATE
     SlangUserGuide/02-conventional-features/conventional-features.slang
     SlangUserGuide/02-conventional-features/ConventionalFeaturesTests.cpp
 
+    Slang/mesh-simple.slang
+    Slang/mesh-task-simple.slang
+    Slang/mesh-primitive-output.slang
+    Slang/MeshShaderTests.cpp
+
     Testing/UnitTest.cpp
     Testing/UnitTest.cs.slang
     Testing/UnitTest.h

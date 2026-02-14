@@ -37,6 +37,10 @@ inline SlangStage getSlangStage(ShaderType type)
         return SLANG_STAGE_MISS;
     case ShaderType::Callable:
         return SLANG_STAGE_CALLABLE;
+    case ShaderType::Mesh:
+        return SLANG_STAGE_MESH;
+    case ShaderType::Amplification:
+        return SLANG_STAGE_AMPLIFICATION;
     default:
         FALCOR_UNREACHABLE();
         return SLANG_STAGE_NONE;
@@ -514,6 +518,9 @@ ref<const EntryPointGroupKernels> ProgramManager::createEntryPointGroupKernels(
     case ShaderType::Miss:
     case ShaderType::Callable:
         return EntryPointGroupKernels::create(EntryPointGroupKernels::Type::RtSingleShader, kernels, kernels[0]->getEntryPointName());
+    case ShaderType::Mesh:
+    case ShaderType::Amplification:
+        return EntryPointGroupKernels::create(EntryPointGroupKernels::Type::Mesh, kernels, kernels[0]->getEntryPointName());
     }
 
     FALCOR_UNREACHABLE();
@@ -765,6 +772,8 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
     // Set additional command line arguments.
     {
         std::vector<const char*> args = { "-Wno-30081", "-Wno-15602", "-Wno-30056", "-Wno-41203", "-Wno-41016" };
+        // Note: -render-features mesh-shader required for mesh shaders in newer Slang;
+        // Falcor's bundled Slang may not support it yet - omit to avoid "unknown option" error.
         for (const auto& arg : mGlobalCompilerArguments)
             args.push_back(arg.c_str());
         for (const auto& arg : program.mDesc.compilerArguments)

@@ -111,6 +111,7 @@ public:
         Rasterization,  ///< A group consisting of rasterization shaders to be used together as a pipeline.
         RtSingleShader, ///< A group consisting of a single ray tracing shader
         RtHitGroup,     ///< A ray tracing "hit group"
+        Mesh,           ///< A group consisting of mesh/amplification shaders
     };
 
     static ref<const EntryPointGroupKernels> create(

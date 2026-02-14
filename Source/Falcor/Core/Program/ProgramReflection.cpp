@@ -1429,6 +1429,8 @@ static ShaderType getShaderTypeFromSlangStage(SlangStage stage)
         CASE(CLOSEST_HIT, ClosestHit);
         CASE(MISS, Miss);
         CASE(CALLABLE, Callable);
+        CASE(MESH, Mesh);
+        CASE(AMPLIFICATION, Amplification);
 #undef CASE
 
     default:
@@ -1513,6 +1515,8 @@ ProgramReflection::ProgramReflection(
         switch (pSlangEntryPoint->getStage())
         {
         case SLANG_STAGE_COMPUTE:
+        case SLANG_STAGE_MESH:
+        case SLANG_STAGE_AMPLIFICATION:
         {
             SlangUInt sizeAlongAxis[3];
             pSlangEntryPoint->getComputeThreadGroupSize(3, &sizeAlongAxis[0]);

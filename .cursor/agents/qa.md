@@ -23,8 +23,10 @@ Falcor 有两类主要测试：
 
 ### C++ 单元测试（FalcorTest）
 
-- **测试位置**：`Source/Tools/FalcorTest/`，含 `Tests/` 子目录及 **SlangUserGuide/** 教程测试
+- **测试位置**：`Source/Tools/FalcorTest/`，含 **Slang/**、**SlangUserGuide/** 及 `Tests/` 子目录
+- **Slang**：`Source/Tools/FalcorTest/Slang/`，**新建 Slang 功能测试应放在此目录**（如 mesh shader 测试）
 - **SlangUserGuide**：`Source/Tools/FalcorTest/SlangUserGuide/`，含 Slang 入门示例（如 `01-get-started/hello-world.slang`）及对应 GPU 测试
+- **Tests/**：大量老测试已全部注释，仅供参考，**不要在此目录新建测试**
 - **运行命令**：`tests/run_unit_tests.bat`
 - **按套件过滤**：`--test-suite HelloWorldTests`（套件名 = 源文件名，如 `HelloWorldTests.cpp` → `HelloWorldTests`）
 - **测试结构**：`GPU_TEST(name)` 或 `CPU_TEST(name)`，使用 `ctx.createProgram()`、`ctx.allocateStructuredBuffer()`、`ctx.runProgram()`、`ctx.readBuffer()` 等
@@ -199,7 +201,7 @@ Falcor 提供 `ErrorMeasurePass` 用于运行时图像误差测量：
 
 ## 当被调用时
 
-1. **创建测试用例**：为新功能或 RenderPass 创建图像测试；为 Slang 示例创建 FalcorTest GPU 测试（参考 `SlangUserGuide/HelloWorldTests.cpp`）
+1. **创建测试用例**：为新功能或 RenderPass 创建图像测试；为 Slang 功能创建 FalcorTest GPU 测试时，**在 `FalcorTest/Slang/` 下新建**（参考 `Slang/MeshShaderTests.cpp`），Slang 入门教程测试在 `SlangUserGuide/`（参考 `SlangUserGuide/HelloWorldTests.cpp`）
 2. **运行测试**：执行图像测试或单元测试（`tests/run_unit_tests.bat --test-suite <name>`）
 3. **调试测试失败**：分析失败原因，提供修复建议
 4. **测量误差**：计算和报告图像误差指标
