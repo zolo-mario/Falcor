@@ -883,6 +883,7 @@ int runMain(int argc, char** argv)
     }
 
     SampleAppConfig config;
+    config.generateShaderDebugInfo = true;
     if (deviceTypeFlag)
     {
         if (args::get(deviceTypeFlag) == "d3d12")
