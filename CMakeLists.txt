@@ -23,6 +23,9 @@ set_property(CACHE FALCOR_ENABLE_ASSERTS PROPERTY STRINGS AUTO ON OFF)
 # Enable/disable the profiler.
 set(FALCOR_ENABLE_PROFILER ON CACHE BOOL "Enable profiler")
 
+# Enable/disable Tracy D3D12 GPU queue profiling (D3D12QueueCtx).
+set(FALCOR_ENABLE_TRACY_D3D12 OFF CACHE BOOL "Enable Tracy D3D12 GPU profiling")
+
 # Enable/disable using system Python distribution. This requires Python 3.7 to be available.
 set(FALCOR_USE_SYSTEM_PYTHON OFF CACHE BOOL "Use system Python distribution")
 
