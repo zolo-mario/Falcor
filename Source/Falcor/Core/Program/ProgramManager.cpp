@@ -736,6 +736,7 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
                                                                          // instead
     addStringOption(slang::CompilerOptionName::DisableWarning, "30081"); // implicit conversion
     addStringOption(slang::CompilerOptionName::DisableWarning, "41203"); // reinterpret<> into not equally sized types
+    addStringOption(slang::CompilerOptionName::DisableWarning, "41021");
 
     sessionDesc.compilerOptionEntries = compilerOptionEntries.data();
     sessionDesc.compilerOptionEntryCount = (uint32_t)compilerOptionEntries.size();
@@ -771,7 +772,7 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
 
     // Set additional command line arguments.
     {
-        std::vector<const char*> args = { "-Wno-30081", "-Wno-15602", "-Wno-30056", "-Wno-41203", "-Wno-41016" };
+        std::vector<const char*> args = { "-Wno-30081", "-Wno-15602", "-Wno-30056", "-Wno-41203", "-Wno-41016", "-Wno-41021" };
         // Note: -render-features mesh-shader required for mesh shaders in newer Slang;
         // Falcor's bundled Slang may not support it yet - omit to avoid "unknown option" error.
         for (const auto& arg : mGlobalCompilerArguments)
