@@ -413,9 +413,10 @@ endif()
 
 add_subdirectory(Source/Falcor)
 add_subdirectory(Source/Modules)
-add_subdirectory(Source/Mogwai)
+# add_subdirectory(Source/Mogwai)
+add_subdirectory(Source/Niagara)
 add_subdirectory(Source/plugins)
-add_subdirectory(Source/RenderPasses)
+# add_subdirectory(Source/RenderPasses)
 add_subdirectory(Source/Tools)
 
 add_dependencies(Falcor copy_data_folder copy_scripts_folder)
