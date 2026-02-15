@@ -65,6 +65,42 @@ struct NiagaraMeshLod
     float error;
 };
 
+/** Mesh task command for Niagara mesh shader (1:1 from original MeshTaskCommand). */
+struct NiagaraMeshTaskCommand
+{
+    uint32_t drawId;
+    uint32_t taskOffset;
+    uint32_t taskCount;
+    uint32_t lateDrawVisibility;
+    uint32_t meshletVisibilityOffset;
+};
+
+/** CullData for shader Globals (1:1 from original). */
+struct NiagaraCullData
+{
+    float4x4 view;
+    float P00, P11, znear, zfar;
+    float frustum[4];
+    float lodTarget;
+    float pyramidWidth, pyramidHeight;
+    uint32_t drawCount;
+    int32_t cullingEnabled;
+    int32_t lodEnabled;
+    int32_t occlusionEnabled;
+    int32_t clusterOcclusionEnabled;
+    int32_t clusterBackfaceEnabled;
+    uint32_t postPass;
+};
+
+/** Globals push constant for mesh shader (1:1 from original). */
+struct NiagaraGlobals
+{
+    float4x4 projection;
+    NiagaraCullData cullData;
+    float screenWidth;
+    float screenHeight;
+};
+
 struct alignas(16) NiagaraMesh
 {
     float3 center;
@@ -93,6 +129,7 @@ struct NiagaraCamera
     quatf orientation;
     float fovY;
     float znear;
+    float4x4 viewMatrix; ///< Cached view matrix from Falcor camera
 };
 
 struct NiagaraScene

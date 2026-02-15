@@ -8,6 +8,7 @@ target_sources(Niagara PRIVATE
     NiagaraConfig.h
     NiagaraScene.cpp
     NiagaraScene.h
+    shaders/NiagaraMeshlet.ms.slang
 )
 
 target_copy_shaders(Niagara Samples/Niagara)

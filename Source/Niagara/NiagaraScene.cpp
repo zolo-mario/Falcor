@@ -371,6 +371,25 @@ bool convertFalcorSceneToNiagaraScene(Scene* pScene,
         draws.push_back(draw);
     }
 
+    if (!pScene->getCameras().empty())
+    {
+        const auto& pCam = pScene->getCamera();
+        outScene.camera.position = pCam->getPosition();
+        outScene.camera.orientation = pCam->getOrientation();
+        outScene.camera.fovY = pCam->getFovY();
+        outScene.camera.znear = pCam->getNearPlane();
+        outScene.camera.viewMatrix = pCam->getViewMatrix();
+    }
+    else
+    {
+        outScene.camera.position = float3(0.f);
+        outScene.camera.orientation = quatf::identity();
+        outScene.camera.fovY = math::radians(70.f);
+        outScene.camera.znear = 0.1f;
+        outScene.camera.viewMatrix = float4x4::identity();
+    }
+    outScene.sunDirection = normalize(float3(1.f, 1.f, 1.f));
+
     return true;
 }
 
