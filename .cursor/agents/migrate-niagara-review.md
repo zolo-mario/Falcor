@@ -16,8 +16,9 @@
 | **HLSL 8 位类型** | `error: unknown type name 'int8_t'/'uint8_t'`（DXC 不支持） | `NiagaraMeshlet` 中 `int8_t`→`int16_t`，`uint8_t`→`uint16_t`；C++ 同步修改 |
 | **SetMeshOutputCounts** | `SetMeshOutputCounts cannot be called multiple times` | 合并分支，先计算 vertexCount/triangleCount，再统一调用一次 |
 | **FBO SRV 标志** | `Texture does not have SRV bind flag set`（blit 时） | 创建 FBO 时加 `ResourceBindFlags::ShaderResource` |
+| **顶点位置未反量化** | 顶点呈碎片化、星形/齿轮状错误几何（PIX 捕获） | `vx,vy,vz` 为 meshopt_quantizeHalf 的 uint16，shader 中需 `dequantizeHalf` 转回 float；texcoord 同理 |
 
-**关键点**：Vulkan/GLSL 与 D3D12/HLSL 在 unbounded 描述符、8 位类型、mesh shader 调用约定上存在差异，1:1 移植后需针对性适配。
+**关键点**：Vulkan/GLSL 与 D3D12/HLSL 在 unbounded 描述符、8 位类型、mesh shader 调用约定上存在差异，1:1 移植后需针对性适配。顶点位置/texcoord 为 meshopt fp16 量化格式，shader 中必须反量化。
 
 ---
 
@@ -62,11 +63,11 @@
 
 ---
 
-### 🔴 P0：clusterIndices / commandId 索引错误
+### 🔴 P0：clusterIndices / commandId 索引错误 ✅ 已修复
 
 **计划**：`commandId = drawIndex * 64`（每 draw 一个 command）
 
-**问题**：计划中的 `drawIndex * 64` 与扁平化 1D 调度不匹配。`gTaskCommands` 按 draw 顺序存储，每 draw 一条记录，索引应为 `0, 1, 2, ...`。使用 `commandId = drawId * 64` 时，draw 1 会访问 `gTaskCommands[64]`，越界。
+**问题**：计划中的 `drawIndex * 64` 与扁平化 1D 调度不匹配。`gTaskCommands` 按 draw 顺序存储，每 draw 一条记录，索引应为 `0, 1, 2, ...`。使用 `commandId = drawId * 64` 时，draw 1 会访问 `gTaskCommands[64]`，越界，导致 mesh shader 读取错误的 meshlet 数据（PIX 捕获显示 fragmented/noisy 输出）。
 
 **修复**：
 ```cpp

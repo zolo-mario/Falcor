@@ -1,103 +1,103 @@
 ---
 name: falcor-run
-description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, run Niagara, build, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
+description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogwai、Niagara、构建、执行测试、图像测试、单元测试（含 SlangUserGuide）、Python 测试、headless 脚本、balls.py 等 Falcor Python 脚本（使用 packman Python）或启动 Falcor 应用时使用。
 ---
 
-# Falcor Run
+# Falcor 运行
 
-## Quick Reference
+## 快速参考
 
-| Action | Command |
-|--------|---------|
-| **Build** | `build_vs2022.bat` or `.\build_vs2022.ps1` |
-| Build target | `.\build_vs2022.ps1 --target D3D12HelloTriangle` |
-| Unit tests (C++) | `tests/run_unit_tests.bat` |
-| Image tests | `tests/run_image_tests.bat` |
-| Python tests | `tests/run_python_tests.bat` (requires conda) |
-| View image test results | `tests/view_image_tests.bat` |
-| Mogwai headless script | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
-| Mogwai interactive | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
+| 操作 | 命令 |
+|------|------|
+| **构建** | `build_vs2022.bat` 或 `.\build_vs2022.ps1` |
+| 构建指定 target | `.\build_vs2022.ps1 --target D3D12HelloTriangle` |
+| 单元测试 (C++) | `tests/run_unit_tests.bat` |
+| 图像测试 | `tests/run_image_tests.bat` |
+| Python 测试 | `tests/run_python_tests.bat`（需 conda） |
+| 查看图像测试结果 | `tests/view_image_tests.bat` |
+| Mogwai headless 脚本 | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
+| Mogwai 交互模式 | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
 | Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
 | D3D12HelloTriangle / D3D12HelloWorld | `./build/windows-vs2022/bin/Debug/<name>.exe` |
-| Packman Python (balls.py etc.) | `tools/.packman/python/python.exe` with `PYTHONPATH` and `PATH` set |
+| Packman Python (balls.py 等) | `tools/.packman/python/python.exe`，需设置 `PYTHONPATH` 和 `PATH` |
 
-Run `.bat`/`.ps1` scripts from the project root (e.g., `F:/Falcor`).
+在项目根目录（如 `F:/Falcor`）运行 `.bat`/`.ps1` 脚本。
 
 ## Mogwai
 
-**Interactive** (opens GUI):
+**交互模式**（打开 GUI）：
 ```bash
 ./build/windows-vs2022/bin/Debug/Mogwai.exe
 ```
 
-**Headless** (scripted render, no GUI):
+**Headless**（脚本渲染，无 GUI）：
 ```bash
 ./build/windows-vs2022/bin/Debug/Mogwai.exe --script "F:/Falcor/Source/RenderPasses/GBuffer/VBuffer/VBufferMeshletRasterTest.py" --scene "F:/Falcor/media/test_scenes/bunny.pyscene" --headless
 ```
 
-Swap `Debug` for `Release` if built with that config.
+若以 Release 构建，将 `Debug` 替换为 `Release`。
 
 ## Niagara
 
-**Run** (SampleApp, loads default scene `Arcade/Arcade.pyscene`):
+**运行**（SampleApp，加载默认场景 `Arcade/Arcade.pyscene`）：
 ```bash
 ./build/windows-vs2022/bin/Debug/Niagara.exe
 ```
 
-Set `FALCOR_MEDIA_FOLDERS` to the media directory (e.g., `F:/Falcor/media`) if the default scene path does not resolve.
+若默认场景路径无法解析，将 `FALCOR_MEDIA_FOLDERS` 设为 media 目录（如 `F:/Falcor/media`）。
 
-**Build** (all or target):
+**构建**（全部或指定 target）：
 ```bash
 .\build_vs2022.ps1
 .\build_vs2022.ps1 --target Niagara
 .\build_vs2022.ps1 --target D3D12HelloTriangle
 ```
-Or use `build_vs2022.bat` (batch).
+或使用 `build_vs2022.bat`（批处理）。
 
-## Test Suites
+## 测试套件
 
-**Unit tests** (FalcorTest.exe):
+**单元测试**（FalcorTest.exe）：
 ```bash
 tests/run_unit_tests.bat
 ```
-Options: `--config Debug|Release`, `--environment <json>`, `--list-configs`, `--test-suite <regex>`, `--test-case <regex>`, `--tags <tags>`
+选项：`--config Debug|Release`、`--environment <json>`、`--list-configs`、`--test-suite <regex>`、`--test-case <regex>`、`--tags <tags>`
 
-**Run specific test suites** (e.g., SlangUserGuide):
+**运行指定测试套件**（如 SlangUserGuide）：
 ```bash
 tests/run_unit_tests.bat --test-suite HelloWorldTests
 ```
 
-**Image tests** (Mogwai-based):
+**图像测试**（基于 Mogwai）：
 ```bash
 tests/run_image_tests.bat
 ```
-Options: `--gen-refs`, `--parallel N`, `--config`, `--environment`
+选项：`--gen-refs`、`--parallel N`、`--config`、`--environment`
 
-**Python tests** (requires conda + CONDA_PYTHON_EXE):
+**Python 测试**（需 conda + CONDA_PYTHON_EXE）：
 ```bash
 tests/run_python_tests.bat
 ```
 
-**View image test results** (web viewer):
+**查看图像测试结果**（Web 查看器）：
 ```bash
 tests/view_image_tests.bat
 ```
 
-## Build Output Paths
+## 构建输出路径
 
-| Config | Path |
+| 配置 | 路径 |
 |--------|------|
 | Debug | `build/windows-vs2022/bin/Debug/` |
 | Release | `build/windows-vs2022/bin/Release/` |
 
-Executables: `Mogwai.exe`, `Niagara.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`, `D3D12HelloTriangle.exe`, `D3D12HelloWorld.exe`
+可执行文件：`Mogwai.exe`、`Niagara.exe`、`FalcorTest.exe`、`ImageCompare.exe`、`RenderGraphEditor.exe`、`D3D12HelloTriangle.exe`、`D3D12HelloWorld.exe`
 
-## Packman Python (Falcor Python scripts)
+## Packman Python（Falcor Python 脚本）
 
-Scripts like `scripts/python/balls/balls.py` use the `falcor` module from the build output. Run with packman Python:
+如 `scripts/python/balls/balls.py` 等脚本使用构建输出中的 `falcor` 模块。使用 packman Python 运行：
 
 ```bash
-# From project root; requires Falcor built (build/windows-vs2022/bin/Debug/python/falcor exists)
+# 在项目根目录；需已构建 Falcor（build/windows-vs2022/bin/Debug/python/falcor 存在）
 set PYTHONPATH=build\windows-vs2022\bin\Debug\python;%PYTHONPATH%
 set PATH=build\windows-vs2022\bin\Debug;build\windows-vs2022\bin\Debug\plugins;%PATH%
 tools\.packman\python\python.exe scripts\python\balls\balls.py
@@ -110,12 +110,12 @@ $env:PATH = "F:\Falcor\build\windows-vs2022\bin\Debug;F:\Falcor\build\windows-vs
 .\tools\.packman\python\python.exe scripts\python\balls\balls.py
 ```
 
-Alternative: `scripts/python/balls/run_balls.bat` (uses `uv run` if available).
+备选：`scripts/python/balls/run_balls.bat`（若可用则使用 `uv run`）。
 
-## Tips
+## 提示
 
-- Run `.bat`/`.ps1` files from repo root; they resolve `tools/.packman/python` and `tests/testing/` automatically.
-- **Build**: `build_vs2022.ps1` uses packman CMake; pass `--target <name>` for a specific target.
-- If packman Python is missing, run `setup.bat` first.
-- Image tests use `tests/environment/default.json` unless overridden.
-- **SlangUserGuide** tests live in `Source/Tools/FalcorTest/SlangUserGuide/`; run with `--test-suite HelloWorldTests` (suite name = source filename without extension).
+- 在仓库根目录运行 `.bat`/`.ps1` 文件；它们会自动解析 `tools/.packman/python` 和 `tests/testing/`。
+- **构建**：`build_vs2022.ps1` 使用 packman CMake；传入 `--target <name>` 指定 target。
+- 若 packman Python 缺失，先运行 `setup.bat`。
+- 图像测试默认使用 `tests/environment/default.json`，除非被覆盖。
+- **SlangUserGuide** 测试位于 `Source/Tools/FalcorTest/SlangUserGuide/`；使用 `--test-suite HelloWorldTests` 运行（套件名 = 源文件名不含扩展名）。

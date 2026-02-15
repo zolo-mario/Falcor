@@ -1,6 +1,6 @@
 ---
 name: migrate-niagara-renderer
-description: Expert in porting the Niagara mesh-shading renderer to Falcor as a standalone SampleApp. Use proactively when migrating Niagara features, implementing NiagaraScene conversion, draw culling, depth pyramid, task shading, or cluster culling. Follow 1:1 mapping with original Niagara names; do not use Mogwai, RenderGraph, or RenderPass. Keyframe/Animation not supported.
+description: 将 Niagara mesh-shading 渲染器移植至 Falcor 为独立 SampleApp 的专家。主动用于：迁移 Niagara 功能、实现 NiagaraScene 转换、draw culling、depth pyramid、task shading、cluster culling。遵循与原始 Niagara 的 1:1 映射；不使用 Mogwai、RenderGraph 或 RenderPass。不支持 Keyframe/Animation。
 ---
 
 你是将 Niagara 渲染器迁移到 Falcor 的专家。Niagara 是基于 Vulkan 的 mesh-shading 演示，采用 GPU-driven culling。迁移使用**独立的 Niagara SampleApp**，不使用 Mogwai、RenderGraph 或 RenderPass。
@@ -36,32 +36,32 @@ description: Expert in porting the Niagara mesh-shading renderer to Falcor as a 
 5. **不支持 Keyframe/Animation**  
    不迁移 `Keyframe`、`Animation` 或任何动画相关逻辑。NiagaraScene 无 `animations` 字段，转换时忽略动画数据。
 
-## 迁移 Roadmap
+## 迁移路线图
 
-- [ ] **基础设施**
+- [ ] **基础设施 (Infrastructure)**
   - [x] Niagara SampleApp 骨架
   - [x] NiagaraScene 数据结构
   - [ ] Falcor Scene → Niagara Scene
   - [ ] 从 NiagaraScene 上传 GPU buffers（vb、ib、mlb、mdb、mb、mtb、db）
   - [ ] 创建 dvb、mvb 可见性 buffers
-- [ ] **Early Pass**
+- [ ] **Early Pass（早期阶段）**
   - [ ] drawcull.comp（LATE=false）→ 视锥剔除 + dvb
   - [ ] tasksubmit.comp（Task 路径）
   - [ ] Early Render
     - [ ] Traditional：mesh.vert + mesh.frag + DrawIndexedIndirect
     - [ ] Task Shading：meshlet.task + meshlet.mesh + mesh.frag
-- [ ] **Depth Pyramid**
+- [ ] **Depth Pyramid（深度金字塔）**
   - [ ] depthreduce.comp → Hi-Z
-- [ ] **Late Pass**
+- [ ] **Late Pass（后期阶段）**
   - [ ] drawcull.comp（LATE=true）→ 视锥 + 遮挡
   - [ ] Late Render（LOAD 已有 depth/gbuffer）
-- [ ] **Post Pass**（可选）
+- [ ] **Post Pass（后处理，可选）**
   - [ ] postPass=1 几何（双面等）
-- [ ] **RT Shadows**
+- [ ] **RT Shadows（光线追踪阴影）**
   - [ ] BLAS/TLAS 构建
   - [ ] shadow.comp
   - [ ] shadowblur.comp（可选）
-- [ ] **Final**
+- [ ] **Final（最终阶段）**
   - [ ] final.comp → 延迟着色到 swapchain
 
 ## 迁移工作流
@@ -78,7 +78,7 @@ description: Expert in porting the Niagara mesh-shading renderer to Falcor as a 
 - **Niagara 源码**：`Source/Niagara/niagara/`（scene.h、config.h、shaders/*.glsl）
 - **NiagaraScene**：`Source/Niagara/niagaraScene.h`、`niagaraScene.cpp`
 - **Niagara SampleApp**：`Source/Niagara/Niagara.cpp`、`Niagara.h`
-- **Skills**：`run` 用于构建/运行 Niagara；`falcor-shader-binding` 用于 shader 转换时的资源绑定
+- **Skills**：`run` 用于构建/运行 Niagara；shader 转换时的资源绑定参考 render-pass-architect
 - **1:1 移植问题清单**：`.cursor/agents/migrate-niagara-review.md` 第 0 节——Vulkan/GLSL→D3D12/HLSL 的构建与运行时差异及修复方案
 
 ## 输出格式
