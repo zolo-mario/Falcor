@@ -2,7 +2,7 @@
 
 #include "scenert.h"
 #include "scene.h"
-#include "resources.h"
+#include "niagara.h"
 
 #include "config.h"
 

@@ -1,5 +1,55 @@
 #pragma once
 
+// =============================================================================
+// Niagara - 合并参考头文件 (device, fileutils, math, resources, textures)
+// 仅供 AI 阅读参考，无需编译
+// =============================================================================
+
+#include <vulkan/vulkan.h>
+
+#include <stddef.h>
+#include <initializer_list>
+
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+#include <glm/mat2x2.hpp>
+#include <glm/mat3x3.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/ext/quaternion_float.hpp>
+#include <glm/ext/quaternion_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+using glm::mat2;
+using glm::mat3;
+using glm::mat4;
+using glm::quat;
+using glm::vec2;
+using glm::vec3;
+using glm::vec4;
+
+// -----------------------------------------------------------------------------
+// fileutils.h
+// -----------------------------------------------------------------------------
+void* mmapFile(const char* path, size_t* outSize);
+void unmapFile(void* data, size_t size);
+
+// -----------------------------------------------------------------------------
+// device.h
+// -----------------------------------------------------------------------------
+bool isInstanceExtensionSupported(const char* name);
+
+VkInstance createInstance();
+VkDebugUtilsMessengerEXT registerDebugCallback(VkInstance instance);
+
+uint32_t getGraphicsFamilyIndex(VkPhysicalDevice physicalDevice);
+VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t physicalDeviceCount);
+
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported);
+
+// -----------------------------------------------------------------------------
+// resources.h
+// -----------------------------------------------------------------------------
 struct Buffer
 {
 	VkBuffer buffer;
@@ -40,3 +90,8 @@ void destroyImage(const Image& image, VkDevice device);
 uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 
 VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT);
+
+// -----------------------------------------------------------------------------
+// textures.h
+// -----------------------------------------------------------------------------
+bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties, const Buffer& scratch, const char* path);

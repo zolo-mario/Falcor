@@ -1,24 +1,16 @@
 #include "common.h"
-
-#include "device.h"
-#include "resources.h"
-#include "textures.h"
+#include "niagara.h"
 #include "shaders.h"
 #include "swapchain.h"
-
 #include "config.h"
-#include "math.h"
 #include "scene.h"
 #include "scenert.h"
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-
 #include <algorithm>
 #include <string>
 #include <vector>
-
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -32,68 +24,17 @@ bool cullingEnabled = true;
 bool lodEnabled = true;
 bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
-bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
+bool taskShadingEnabled = false; // disabled for AMD perf
 bool shadowsEnabled = true;
 bool shadowblurEnabled = true;
 bool shadowCheckerboard = false;
 int shadowQuality = 1;
 bool animationEnabled = false;
-int debugGuiMode = 1;
-int debugLodStep = 0;
-bool debugSleep = false;
 
-bool reloadShaders = false;
-uint32_t reloadShadersColor = 0xffffffff;
-double reloadShadersTimer = 0;
-
-VkSemaphore createSemaphore(VkDevice device)
-{
-	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-
-	VkSemaphore semaphore = 0;
-	VK_CHECK(vkCreateSemaphore(device, &createInfo, 0, &semaphore));
-
-	return semaphore;
-}
-
-VkFence createFence(VkDevice device)
-{
-	VkFenceCreateInfo createInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-
-	VkFence fence = 0;
-	VK_CHECK(vkCreateFence(device, &createInfo, 0, &fence));
-
-	return fence;
-}
-
-VkCommandPool createCommandPool(VkDevice device, uint32_t familyIndex)
-{
-	VkCommandPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-	createInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	createInfo.queueFamilyIndex = familyIndex;
-
-	VkCommandPool commandPool = 0;
-	VK_CHECK(vkCreateCommandPool(device, &createInfo, 0, &commandPool));
-
-	return commandPool;
-}
-
-VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount, VkQueryType queryType)
-{
-	VkQueryPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
-	createInfo.queryType = queryType;
-	createInfo.queryCount = queryCount;
-
-	if (queryType == VK_QUERY_TYPE_PIPELINE_STATISTICS)
-	{
-		createInfo.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT;
-	}
-
-	VkQueryPool queryPool = 0;
-	VK_CHECK(vkCreateQueryPool(device, &createInfo, 0, &queryPool));
-
-	return queryPool;
-}
+VkSemaphore createSemaphore(VkDevice device);
+VkFence createFence(VkDevice device);
+VkCommandPool createCommandPool(VkDevice device, uint32_t familyIndex);
+VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount, VkQueryType queryType);
 
 template <typename PushConstants, size_t PushDescriptors>
 void dispatch(VkCommandBuffer commandBuffer, const Program& program, uint32_t threadCountX, uint32_t threadCountY, const PushConstants& pushConstants, const DescriptorInfo (&pushDescriptors)[PushDescriptors])
@@ -175,104 +116,9 @@ struct alignas(16) ShadeData
 	vec2 imageSize;
 };
 
-struct alignas(16) TextData
-{
-	int offsetX, offsetY;
-	int scale;
-	unsigned int color;
-
-	char data[112];
-};
-
-void errorCallback(int error_code, const char* description)
-{
-	fprintf(stderr, "GLFW ERROR (%d): %s\n", error_code, description);
-}
-
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-	if (action == GLFW_PRESS)
-	{
-		if (key == GLFW_KEY_M)
-		{
-			meshShadingEnabled = !meshShadingEnabled;
-		}
-		if (key == GLFW_KEY_C)
-		{
-			cullingEnabled = !cullingEnabled;
-		}
-		if (key == GLFW_KEY_O)
-		{
-			occlusionEnabled = !occlusionEnabled;
-		}
-		if (key == GLFW_KEY_K)
-		{
-			clusterOcclusionEnabled = !clusterOcclusionEnabled;
-		}
-		if (key == GLFW_KEY_L)
-		{
-			lodEnabled = !lodEnabled;
-		}
-		if (key == GLFW_KEY_T)
-		{
-			taskShadingEnabled = !taskShadingEnabled;
-		}
-		if (key == GLFW_KEY_F)
-		{
-			shadowsEnabled = !shadowsEnabled;
-		}
-		if (key == GLFW_KEY_B)
-		{
-			shadowblurEnabled = !shadowblurEnabled;
-		}
-		if (key == GLFW_KEY_X)
-		{
-			shadowCheckerboard = !shadowCheckerboard;
-		}
-		if (key == GLFW_KEY_Q)
-		{
-			shadowQuality = 1 - shadowQuality;
-		}
-		if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
-		{
-			debugLodStep = key - GLFW_KEY_0;
-		}
-		if (key == GLFW_KEY_R)
-		{
-			reloadShaders = !reloadShaders;
-			reloadShadersTimer = 0;
-		}
-		if (key == GLFW_KEY_G)
-		{
-			debugGuiMode++;
-		}
-		if (key == GLFW_KEY_SPACE)
-		{
-			animationEnabled = !animationEnabled;
-		}
-		if (key == GLFW_KEY_Z)
-		{
-			debugSleep = !debugSleep;
-		}
-		if (key == GLFW_KEY_ESCAPE)
-		{
-			glfwSetWindowShouldClose(window, true);
-		}
-	}
-}
-
-void mouseCallback(GLFWwindow* window, int button, int action, int mods)
-{
-	if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_RIGHT)
-	{
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorPos(window, 0, 0);
-	}
-	else if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_RIGHT)
-	{
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-	}
-}
+void errorCallback(int error_code, const char* description);
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void mouseCallback(GLFWwindow* window, int button, int action, int mods);
 
 mat4 perspectiveProjection(float fovY, float aspectWbyH, float zNear)
 {
@@ -299,40 +145,6 @@ uint32_t previousPow2(uint32_t v)
 	return r;
 }
 
-struct pcg32_random_t
-{
-	uint64_t state;
-	uint64_t inc;
-};
-
-#define PCG32_INITIALIZER \
-	{ \
-		0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL \
-	}
-
-uint32_t pcg32_random_r(pcg32_random_t* rng)
-{
-	uint64_t oldstate = rng->state;
-	// Advance internal state
-	rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
-	// Calculate output function (XSH RR), uses old state for max ILP
-	uint32_t xorshifted = uint32_t(((oldstate >> 18u) ^ oldstate) >> 27u);
-	uint32_t rot = oldstate >> 59u;
-	return (xorshifted >> rot) | (xorshifted << ((32 - rot) & 31));
-}
-
-pcg32_random_t rngstate = PCG32_INITIALIZER;
-
-double rand01()
-{
-	return pcg32_random_r(&rngstate) / double(1ull << 32);
-}
-
-uint32_t rand32()
-{
-	return pcg32_random_r(&rngstate);
-}
-
 int main(int argc, const char** argv)
 {
 	if (argc < 2)
@@ -357,87 +169,21 @@ int main(int argc, const char** argv)
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	VkInstance instance = createInstance();
-	if (!instance)
-		return -1;
-
-	volkLoadInstanceOnly(instance);
-
-	VkDebugUtilsMessengerEXT debugCallback = registerDebugCallback(instance);
-
-	VkPhysicalDevice physicalDevices[16];
-	uint32_t physicalDeviceCount = sizeof(physicalDevices) / sizeof(physicalDevices[0]);
-	VK_CHECK(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices));
-
-	VkPhysicalDevice physicalDevice = pickPhysicalDevice(physicalDevices, physicalDeviceCount);
-	if (!physicalDevice)
-	{
-		if (debugCallback)
-			vkDestroyDebugUtilsMessengerEXT(instance, debugCallback, 0);
-		vkDestroyInstance(instance, 0);
-		return -1;
-	}
-
-	uint32_t extensionCount = 0;
-	VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice, 0, &extensionCount, 0));
-
-	std::vector<VkExtensionProperties> extensions(extensionCount);
-	VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice, 0, &extensionCount, extensions.data()));
-
+	VkInstance instance;
+	VkDebugUtilsMessengerEXT debugCallback;
+	VkPhysicalDevice physicalDevice;
 	bool meshShadingSupported = false;
 	bool raytracingSupported = false;
 	bool clusterrtSupported = false;
-	bool unifiedlayoutsSupported = false;
-
-	for (auto& ext : extensions)
-	{
-		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
-		raytracingSupported = raytracingSupported || strcmp(ext.extensionName, VK_KHR_RAY_QUERY_EXTENSION_NAME) == 0;
-		unifiedlayoutsSupported = unifiedlayoutsSupported || strcmp(ext.extensionName, "VK_KHR_unified_image_layouts") == 0;
-
-#ifdef VK_NV_cluster_acceleration_structure
-		clusterrtSupported = clusterrtSupported || strcmp(ext.extensionName, VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME) == 0;
-#endif
-	}
-
-	if (!unifiedlayoutsSupported)
-		printf("WARNING: KHR_unified_image_layouts is not supported; barrier setup may be inefficient\n");
-
-	meshShadingEnabled = meshShadingSupported;
-
 	VkPhysicalDeviceProperties props = {};
-	vkGetPhysicalDeviceProperties(physicalDevice, &props);
-	assert(props.limits.timestampComputeAndGraphics);
-
-	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
-	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
-
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported);
-	assert(device);
-
-	volkLoadDevice(device);
-
+	uint32_t familyIndex;
+	VkDevice device;
 	VkSemaphore acquireSemaphores[MAX_FRAMES] = {};
 	VkFence frameFences[MAX_FRAMES] = {};
-
-	for (int i = 0; i < MAX_FRAMES; ++i)
-	{
-		acquireSemaphores[i] = createSemaphore(device);
-		frameFences[i] = createFence(device);
-		assert(acquireSemaphores[i] && frameFences[i]);
-	}
-
 	VkQueue queue = 0;
-	vkGetDeviceQueue(device, familyIndex, 0, &queue);
-
-	VkSampler textureSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-	assert(textureSampler);
-
-	VkSampler readSampler = createSampler(device, VK_FILTER_NEAREST, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-	assert(readSampler);
-
-	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
-	assert(depthSampler);
+	VkSampler textureSampler;
+	VkSampler readSampler;
+	VkSampler depthSampler;
 
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
@@ -459,8 +205,6 @@ int main(int argc, const char** argv)
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
 	VkPipelineCache pipelineCache = 0;
-
-	Program debugtextProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["debugtext.comp"] }, sizeof(TextData));
 
 	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["drawcull.comp"] }, sizeof(CullData));
 	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["tasksubmit.comp"] }, 0);
@@ -489,7 +233,6 @@ int main(int argc, const char** argv)
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 	}
 
-	VkPipeline debugtextPipeline = 0;
 	VkPipeline drawcullPipeline = 0;
 	VkPipeline drawculllatePipeline = 0;
 	VkPipeline taskcullPipeline = 0;
@@ -527,8 +270,6 @@ int main(int argc, const char** argv)
 		};
 
 		pipelines.clear();
-
-		replace(debugtextPipeline, createComputePipeline(device, pipelineCache, debugtextProgram));
 
 		replace(drawcullPipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ false }));
 		replace(drawculllatePipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ false }));
@@ -570,13 +311,10 @@ int main(int argc, const char** argv)
 	createPipelines();
 
 	VkQueryPool queryPoolsTimestamp[MAX_FRAMES] = {};
-	VkQueryPool queryPoolsPipeline[MAX_FRAMES] = {};
-
 	for (int i = 0; i < MAX_FRAMES; ++i)
 	{
 		queryPoolsTimestamp[i] = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
-		queryPoolsPipeline[i] = createQueryPool(device, 4, VK_QUERY_TYPE_PIPELINE_STATISTICS);
-		assert(queryPoolsTimestamp[i] && queryPoolsPipeline[i]);
+		assert(queryPoolsTimestamp[i]);
 	}
 
 	VkCommandPool commandPools[MAX_FRAMES] = {};
@@ -728,33 +466,11 @@ int main(int argc, const char** argv)
 
 	if (draws.empty())
 	{
-		rngstate.state = 0x42;
-
-		uint32_t drawCount = 1000000;
-		draws.resize(drawCount);
-
-		float sceneRadius = 300;
-
-		for (uint32_t i = 0; i < drawCount; ++i)
-		{
-			MeshDraw& draw = draws[i];
-
-			size_t meshIndex = rand32() % geometry.meshes.size();
-			const Mesh& mesh = geometry.meshes[meshIndex];
-
-			draw.position[0] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-			draw.position[1] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-			draw.position[2] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-			draw.scale = float(rand01()) + 1;
-			draw.scale *= 2;
-
-			vec3 axis = normalize(vec3(float(rand01()) * 2 - 1, float(rand01()) * 2 - 1, float(rand01()) * 2 - 1));
-			float angle = glm::radians(float(rand01()) * 90.f);
-
-			draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
-
-			draw.meshIndex = uint32_t(meshIndex);
-		}
+		draws.resize(1);
+		draws[0].position = vec3(0);
+		draws[0].scale = 1.f;
+		draws[0].orientation = quat(0, 0, 0, 1);
+		draws[0].meshIndex = 0;
 	}
 
 	float drawDistance = 200;
@@ -944,23 +660,17 @@ int main(int argc, const char** argv)
 
 	std::vector<VkImageView> swapchainImageViews(swapchain.imageCount);
 
-	double frameCpuAvg = 0;
-	double frameGpuAvg = 0;
-
 	uint64_t frameIndex = 0;
 	double frameTimestamp = glfwGetTime();
 
 	double animationTime = 0;
 
 	uint64_t timestampResults[23] = {};
-	uint64_t pipelineResults[3] = {};
 
 	while (!glfwWindowShouldClose(window))
 	{
 		double frameDelta = glfwGetTime() - frameTimestamp;
 		frameTimestamp = glfwGetTime();
-
-		double frameCpuBegin = glfwGetTime() * 1000;
 
 		glfwPollEvents();
 
@@ -982,43 +692,6 @@ int main(int argc, const char** argv)
 			camera.orientation = glm::rotate(glm::quat(0, 0, 0, 1), float(-cameraRotation.y * frameDelta * cameraRotationSpeed), camera.orientation * vec3(1, 0, 0)) * camera.orientation;
 
 			glfwSetCursorPos(window, 0, 0);
-		}
-
-		if (reloadShaders && glfwGetTime() >= reloadShadersTimer)
-		{
-			bool changed = false;
-			int rc = system("ninja --quiet compile_shaders");
-			if (rc == 0)
-			{
-				for (Shader& shader : shaders.shaders)
-				{
-					std::vector<char> oldSpirv = std::move(shader.spirv);
-
-					rcs = loadShader(shader, argv[0], ("spirv/" + shader.name + ".spv").c_str());
-					assert(rcs);
-
-					changed |= oldSpirv != shader.spirv;
-				}
-
-				if (changed)
-				{
-					VK_CHECK(vkDeviceWaitIdle(device));
-
-					createPipelines();
-
-					reloadShadersColor = 0x00ff00;
-				}
-				else
-				{
-					reloadShadersColor = 0xffffff;
-				}
-			}
-			else
-			{
-				reloadShadersColor = 0xff0000;
-			}
-
-			reloadShadersTimer = glfwGetTime() + 1;
 		}
 
 		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -1123,7 +796,6 @@ int main(int argc, const char** argv)
 		VkFence frameFence = frameFences[frameIndex % MAX_FRAMES];
 
 		VkQueryPool queryPoolTimestamp = queryPoolsTimestamp[frameIndex % MAX_FRAMES];
-		VkQueryPool queryPoolPipeline = queryPoolsPipeline[frameIndex % MAX_FRAMES];
 
 		uint32_t imageIndex = 0;
 		VkResult acquireResult = vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
@@ -1207,7 +879,7 @@ int main(int argc, const char** argv)
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;
-		cullData.lodTarget = (2 / cullData.P11) * (1.f / float(swapchain.height)) * (1 << debugLodStep); // 1px
+		cullData.lodTarget = (2 / cullData.P11) * (1.f / float(swapchain.height)); // 1px
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
 		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;
@@ -1268,11 +940,9 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		};
 
-		auto render = [&](bool late, const VkClearColorValue& colorClear, const VkClearDepthStencilValue& depthClear, uint32_t query, uint32_t timestamp, const char* phase, unsigned int postPass = 0)
+		auto render = [&](bool late, const VkClearColorValue& colorClear, const VkClearDepthStencilValue& depthClear, uint32_t timestamp, unsigned int postPass = 0)
 		{
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
-
-			vkCmdBeginQuery(commandBuffer, queryPoolPipeline, query, 0);
 
 			if (clusterSubmit)
 			{
@@ -1389,8 +1059,6 @@ int main(int argc, const char** argv)
 
 			vkCmdEndRendering(commandBuffer);
 
-			vkCmdEndQuery(commandBuffer, queryPoolPipeline, query);
-
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		};
 
@@ -1430,8 +1098,6 @@ int main(int argc, const char** argv)
 		    { swapchain.images[imageIndex], depthPyramid.image, shadowTarget.image, shadowblurTarget.image, gbufferTargets[0].image, gbufferTargets[1].image },
 		    { depthTarget.image });
 
-		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
-
 		VkClearColorValue colorClear = { 135.f / 255.f, 206.f / 255.f, 250.f / 255.f, 15.f / 255.f };
 		VkClearDepthStencilValue depthClear = { 0.f, 0 };
 
@@ -1439,7 +1105,7 @@ int main(int argc, const char** argv)
 		cull(taskSubmit ? taskcullPipeline : drawcullPipeline, 2, "early cull", /* late= */ false);
 
 		// early render: render objects that were visible last frame
-		render(/* late= */ false, colorClear, depthClear, 0, 4, "early render");
+		render(/* late= */ false, colorClear, depthClear, 4);
 
 		// depth pyramid generation
 		pyramid(6);
@@ -1448,16 +1114,13 @@ int main(int argc, const char** argv)
 		cull(taskSubmit ? taskculllatePipeline : drawculllatePipeline, 8, "late cull", /* late= */ true);
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
-		render(/* late= */ true, colorClear, depthClear, 1, 10, "late render");
+		render(/* late= */ true, colorClear, depthClear, 10);
 
 		// we can skip post passes if no draw call needs them
 		if (meshPostPasses >> 1)
 		{
-			// post cull: frustum + occlusion cull & fill extra objects
 			cull(taskSubmit ? taskculllatePipeline : drawculllatePipeline, 12, "post cull", /* late= */ true, /* postPass= */ 1);
-
-			// post render: render extra objects
-			render(/* late= */ true, colorClear, depthClear, 2, 14, "post render", /* postPass= */ 1);
+			render(/* late= */ true, colorClear, depthClear, 14, /* postPass= */ 1);
 		}
 
 		stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -1556,89 +1219,6 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		}
 
-		if (debugGuiMode % 3)
-		{
-			auto debugtext = [&](int line, uint32_t color, const char* format, ...)
-#ifdef __GNUC__
-			                     __attribute__((format(printf, 4, 5)))
-#endif
-			{
-				TextData textData = {};
-				textData.offsetX = 1;
-				textData.offsetY = line + 1;
-				textData.scale = 2;
-				textData.color = color;
-
-				va_list args;
-				va_start(args, format);
-				vsnprintf(textData.data, sizeof(textData.data), format, args);
-				va_end(args);
-
-				vkCmdPushConstants(commandBuffer, debugtextProgram.layout, debugtextProgram.pushConstantStages, 0, sizeof(textData), &textData);
-				vkCmdDispatch(commandBuffer, strlen(textData.data), 1, 1);
-			};
-
-			stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, debugtextPipeline);
-
-			DescriptorInfo descriptors[] = { swapchainImageViews[imageIndex] };
-			vkCmdPushDescriptorSetWithTemplate(commandBuffer, debugtextProgram.updateTemplate, debugtextProgram.layout, 0, descriptors);
-
-			// debug text goes here!
-			uint64_t triangleCount = pipelineResults[0] + pipelineResults[1] + pipelineResults[2];
-
-			double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
-			double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
-
-			double cullGpuTime = double(timestampResults[3] - timestampResults[2]) * props.limits.timestampPeriod * 1e-6;
-			double renderGpuTime = double(timestampResults[5] - timestampResults[4]) * props.limits.timestampPeriod * 1e-6;
-			double pyramidGpuTime = double(timestampResults[7] - timestampResults[6]) * props.limits.timestampPeriod * 1e-6;
-			double culllateGpuTime = double(timestampResults[9] - timestampResults[8]) * props.limits.timestampPeriod * 1e-6;
-			double renderlateGpuTime = double(timestampResults[11] - timestampResults[10]) * props.limits.timestampPeriod * 1e-6;
-			double cullpostGpuTime = double(timestampResults[13] - timestampResults[12]) * props.limits.timestampPeriod * 1e-6;
-			double renderpostGpuTime = double(timestampResults[15] - timestampResults[14]) * props.limits.timestampPeriod * 1e-6;
-			double shadowsGpuTime = double(timestampResults[17] - timestampResults[16]) * props.limits.timestampPeriod * 1e-6;
-			double shadowblurGpuTime = double(timestampResults[18] - timestampResults[17]) * props.limits.timestampPeriod * 1e-6;
-			double shadeGpuTime = double(timestampResults[20] - timestampResults[19]) * props.limits.timestampPeriod * 1e-6;
-			double tlasGpuTime = double(timestampResults[22] - timestampResults[21]) * props.limits.timestampPeriod * 1e-6;
-
-			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
-			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
-
-			debugtext(0, ~0u, "%scpu: %.2f ms (%+.2f); gpu: %.2f ms", reloadShaders ? "   " : "", frameCpuAvg, frameDelta * 1000 - frameCpuAvg, frameGpuAvg);
-
-			if (reloadShaders)
-				debugtext(0, reloadShadersColor, "R*");
-
-			if (debugGuiMode % 3 == 2)
-			{
-				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms",
-				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
-				    pyramidGpuTime,
-				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
-				    shadeGpuTime);
-				debugtext(3, ~0u, "render breakdown: early %.2f ms, late %.2f ms, post %.2f ms",
-				    renderGpuTime, renderlateGpuTime, renderpostGpuTime);
-				debugtext(4, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
-				    tlasGpuTime,
-				    shadowsGpuTime, shadowblurGpuTime);
-				debugtext(5, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
-				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
-
-				debugtext(7, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
-				    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
-				debugtext(8, ~0u, "mesh shading %s, task shading %s, cluster occlusion culling %s",
-				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
-				    clusterOcclusionEnabled ? "ON" : "OFF");
-
-				debugtext(10, ~0u, "RT shadows: %s, blur %s, quality %d, checkerboard %s",
-				    raytracingSupported && shadowsEnabled ? "ON" : "OFF",
-				    raytracingSupported && shadowblurEnabled ? "ON" : "OFF",
-				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");
-			}
-		}
-
 		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
 		    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
 		    0, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -1680,153 +1260,10 @@ int main(int argc, const char** argv)
 
 			VK_CHECK(vkWaitForFences(device, 1, &waitFence, VK_TRUE, ~0ull));
 			VK_CHECK(vkResetFences(device, 1, &waitFence));
-
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsTimestamp[waitIndex], 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsPipeline[waitIndex], 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
-
-			double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
-			double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
-			frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 		}
-
-		double frameCpuEnd = glfwGetTime() * 1000;
-		frameCpuAvg = frameCpuAvg * 0.95 + (frameCpuEnd - frameCpuBegin) * 0.05;
 
 		frameIndex++;
 
-		if (debugSleep)
-		{
-#ifdef _WIN32
-			Sleep(20);
-#else
-			usleep(20 * 1000);
-#endif
-		}
 	}
 
-	VK_CHECK(vkDeviceWaitIdle(device));
-
-	vkDestroyDescriptorPool(device, textureSet.first, 0);
-
-	for (Image& image : images)
-		destroyImage(image, device);
-
-	for (Image& image : gbufferTargets)
-		if (image.image)
-			destroyImage(image, device);
-	if (depthTarget.image)
-		destroyImage(depthTarget, device);
-
-	if (depthPyramid.image)
-	{
-		for (uint32_t i = 0; i < depthPyramidLevels; ++i)
-			vkDestroyImageView(device, depthPyramidMips[i], 0);
-		destroyImage(depthPyramid, device);
-	}
-
-	if (shadowTarget.image)
-		destroyImage(shadowTarget, device);
-	if (shadowblurTarget.image)
-		destroyImage(shadowblurTarget, device);
-
-	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
-		if (swapchainImageViews[i])
-			vkDestroyImageView(device, swapchainImageViews[i], 0);
-
-	destroyBuffer(mb, device);
-	destroyBuffer(mtb, device);
-
-	destroyBuffer(db, device);
-	destroyBuffer(dvb, device);
-	destroyBuffer(dcb, device);
-	destroyBuffer(dccb, device);
-
-	if (meshShadingSupported)
-	{
-		destroyBuffer(mlb, device);
-		destroyBuffer(mdb, device);
-		destroyBuffer(mvb, device);
-		destroyBuffer(cib, device);
-		destroyBuffer(ccb, device);
-	}
-
-	if (raytracingSupported)
-	{
-		vkDestroyAccelerationStructureKHR(device, tlas, 0);
-		for (VkAccelerationStructureKHR as : blas)
-			vkDestroyAccelerationStructureKHR(device, as, 0);
-
-		destroyBuffer(tlasBuffer, device);
-		destroyBuffer(blasBuffer, device);
-		destroyBuffer(tlasScratchBuffer, device);
-		destroyBuffer(tlasInstanceBuffer, device);
-	}
-
-	destroyBuffer(ib, device);
-	destroyBuffer(vb, device);
-
-	destroyBuffer(scratch, device);
-
-	for (VkCommandPool pool : commandPools)
-		vkDestroyCommandPool(device, pool, 0);
-
-	for (VkQueryPool pool : queryPoolsTimestamp)
-		vkDestroyQueryPool(device, pool, 0);
-	for (VkQueryPool pool : queryPoolsPipeline)
-		vkDestroyQueryPool(device, pool, 0);
-
-	for (VkSemaphore semaphore : presentSemaphores)
-		vkDestroySemaphore(device, semaphore, 0);
-
-	destroySwapchain(device, swapchain);
-
-	for (VkPipeline pipeline : pipelines)
-		vkDestroyPipeline(device, pipeline, 0);
-
-	destroyProgram(device, debugtextProgram);
-	destroyProgram(device, drawcullProgram);
-	destroyProgram(device, tasksubmitProgram);
-	destroyProgram(device, clustersubmitProgram);
-	destroyProgram(device, clustercullProgram);
-	destroyProgram(device, depthreduceProgram);
-	destroyProgram(device, meshProgram);
-
-	if (meshShadingSupported)
-	{
-		destroyProgram(device, meshtaskProgram);
-		destroyProgram(device, clusterProgram);
-	}
-
-	destroyProgram(device, finalProgram);
-
-	if (raytracingSupported)
-	{
-		destroyProgram(device, shadowProgram);
-		destroyProgram(device, shadowfillProgram);
-		destroyProgram(device, shadowblurProgram);
-	}
-
-	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
-
-	vkDestroySampler(device, textureSampler, 0);
-	vkDestroySampler(device, readSampler, 0);
-	vkDestroySampler(device, depthSampler, 0);
-
-	for (VkFence fence : frameFences)
-		vkDestroyFence(device, fence, 0);
-	for (VkSemaphore semaphore : acquireSemaphores)
-		vkDestroySemaphore(device, semaphore, 0);
-
-	vkDestroySurfaceKHR(instance, surface, 0);
-
-	glfwDestroyWindow(window);
-
-	vkDestroyDevice(device, 0);
-
-	if (debugCallback)
-		vkDestroyDebugUtilsMessengerEXT(instance, debugCallback, 0);
-
-	vkDestroyInstance(instance, 0);
-
-	volkFinalize();
 }

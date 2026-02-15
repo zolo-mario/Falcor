@@ -2,7 +2,7 @@
 #include "scene.h"
 #include "config.h"
 
-#include "fileutils.h"
+#include "niagara.h"
 
 #include "meshoptimizer.h"
 

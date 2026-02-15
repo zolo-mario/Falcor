@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math.h"
+#include "niagara.h"
 
 #include <stdint.h>
 
