@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, run Niagara, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
+description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, run Niagara, build, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
 ---
 
 # Falcor Run
@@ -9,6 +9,8 @@ description: Run Falcor applications, tests, and scripts. Use when the user asks
 
 | Action | Command |
 |--------|---------|
+| **Build** | `build_vs2022.bat` or `.\build_vs2022.ps1` |
+| Build target | `.\build_vs2022.ps1 --target D3D12HelloTriangle` |
 | Unit tests (C++) | `tests/run_unit_tests.bat` |
 | Image tests | `tests/run_image_tests.bat` |
 | Python tests | `tests/run_python_tests.bat` (requires conda) |
@@ -16,9 +18,10 @@ description: Run Falcor applications, tests, and scripts. Use when the user asks
 | Mogwai headless script | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
 | Mogwai interactive | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
 | Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
+| D3D12HelloTriangle / D3D12HelloWorld | `./build/windows-vs2022/bin/Debug/<name>.exe` |
 | Packman Python (balls.py etc.) | `tools/.packman/python/python.exe` with `PYTHONPATH` and `PATH` set |
 
-Run `.bat` scripts from the project root (e.g., `F:/Falcor`).
+Run `.bat`/`.ps1` scripts from the project root (e.g., `F:/Falcor`).
 
 ## Mogwai
 
@@ -43,10 +46,13 @@ Swap `Debug` for `Release` if built with that config.
 
 Set `FALCOR_MEDIA_FOLDERS` to the media directory (e.g., `F:/Falcor/media`) if the default scene path does not resolve.
 
-**Build** Niagara first:
+**Build** (all or target):
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target Niagara
+.\build_vs2022.ps1
+.\build_vs2022.ps1 --target Niagara
+.\build_vs2022.ps1 --target D3D12HelloTriangle
 ```
+Or use `build_vs2022.bat` (batch).
 
 ## Test Suites
 
@@ -84,7 +90,7 @@ tests/view_image_tests.bat
 | Debug | `build/windows-vs2022/bin/Debug/` |
 | Release | `build/windows-vs2022/bin/Release/` |
 
-Executables: `Mogwai.exe`, `Niagara.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`
+Executables: `Mogwai.exe`, `Niagara.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`, `D3D12HelloTriangle.exe`, `D3D12HelloWorld.exe`
 
 ## Packman Python (Falcor Python scripts)
 
@@ -108,7 +114,8 @@ Alternative: `scripts/python/balls/run_balls.bat` (uses `uv run` if available).
 
 ## Tips
 
-- Run `.bat` files from repo root; they resolve `tools/.packman/python` and `tests/testing/` automatically.
+- Run `.bat`/`.ps1` files from repo root; they resolve `tools/.packman/python` and `tests/testing/` automatically.
+- **Build**: `build_vs2022.ps1` uses packman CMake; pass `--target <name>` for a specific target.
 - If packman Python is missing, run `setup.bat` first.
 - Image tests use `tests/environment/default.json` unless overridden.
 - **SlangUserGuide** tests live in `Source/Tools/FalcorTest/SlangUserGuide/`; run with `--test-suite HelloWorldTests` (suite name = source filename without extension).
