@@ -2,6 +2,7 @@
 #include "NiagaraConfig.h"
 
 #include "Scene/Scene.h"
+#include "Utils/Math/FalcorMath.h"
 #include "Scene/Material/BasicMaterial.h"
 #include "Scene/Animation/AnimationController.h"
 #include "Core/API/Buffer.h"
@@ -94,9 +95,9 @@ static void appendMeshlet(NiagaraGeometry& result,
     NiagaraMeshlet m = {};
     m.dataOffset = uint32_t(dataOffset);
     m.baseVertex = baseVertex + minVertex;
-    m.triangleCount = (uint8_t)meshlet.triangle_count;
-    m.vertexCount = (uint8_t)meshlet.vertex_count;
-    m.shortRefs = shortRefs;
+    m.triangleCount = (uint16_t)meshlet.triangle_count;
+    m.vertexCount = (uint16_t)meshlet.vertex_count;
+    m.shortRefs = shortRefs ? 1u : 0u;
 
     m.center[0] = meshopt_quantizeHalf(bounds.center[0]);
     m.center[1] = meshopt_quantizeHalf(bounds.center[1]);
@@ -375,8 +376,14 @@ bool convertFalcorSceneToNiagaraScene(Scene* pScene,
     {
         const auto& pCam = pScene->getCamera();
         outScene.camera.position = pCam->getPosition();
-        outScene.camera.orientation = pCam->getOrientation();
-        outScene.camera.fovY = pCam->getFovY();
+        // outScene.camera.orientation = pCam->getOrientation();
+        // outScene.camera.fovY = pCam->getFovY();
+        float4x4 invView = math::inverse(pCam->getViewMatrix());
+        float3 scale, translation, skew;
+        float4 perspective;
+        if (!math::decompose(invView, scale, outScene.camera.orientation, translation, skew, perspective))
+            outScene.camera.orientation = quatf::identity();
+        outScene.camera.fovY = focalLengthToFovY(pCam->getFocalLength(), pCam->getFrameHeight());
         outScene.camera.znear = pCam->getNearPlane();
         outScene.camera.viewMatrix = pCam->getViewMatrix();
     }

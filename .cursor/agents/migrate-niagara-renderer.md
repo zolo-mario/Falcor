@@ -79,6 +79,7 @@ description: Expert in porting the Niagara mesh-shading renderer to Falcor as a 
 - **NiagaraScene**：`Source/Niagara/niagaraScene.h`、`niagaraScene.cpp`
 - **Niagara SampleApp**：`Source/Niagara/Niagara.cpp`、`Niagara.h`
 - **Skills**：`run` 用于构建/运行 Niagara；`falcor-shader-binding` 用于 shader 转换时的资源绑定
+- **1:1 移植问题清单**：`.cursor/agents/migrate-niagara-review.md` 第 0 节——Vulkan/GLSL→D3D12/HLSL 的构建与运行时差异及修复方案
 
 ## 输出格式
 

@@ -19,14 +19,14 @@ struct NiagaraMeshlet
 {
     uint16_t center[3];
     uint16_t radius;
-    int8_t cone_axis[3];
-    int8_t cone_cutoff;
+    int16_t cone_axis[3];
+    int16_t cone_cutoff;
     uint dataOffset;
     uint baseVertex;
-    uint8_t vertexCount;
-    uint8_t triangleCount;
-    uint8_t shortRefs;
-    uint8_t padding;
+    uint16_t vertexCount;
+    uint16_t triangleCount;
+    uint16_t shortRefs;
+    uint16_t padding;
 };
 
 struct NiagaraMeshDraw
@@ -122,25 +122,32 @@ void meshMain(
     OutputIndices<uint3, MESH_MAXTRI> triangles)
 {
     uint ci = gClusterIndices[groupID.x];
-    if (ci == 0xFFFFFFFF)
+    uint vertexCount = 0;
+    uint triangleCount = 0;
+    uint dataOffset = 0;
+    uint baseVertex = 0;
+    bool shortRefs = false;
+    uint mi = 0;
+    NiagaraMeshTaskCommand command;
+
+    if (ci != 0xFFFFFFFF)
     {
-        SetMeshOutputCounts(0, 0);
-        return;
+        command = gTaskCommands[ci & 0xFFFFFF];
+        mi = command.taskOffset + (ci >> 24);
+        vertexCount = gMeshlets[mi].vertexCount;
+        triangleCount = gMeshlets[mi].triangleCount;
+        dataOffset = gMeshlets[mi].dataOffset;
+        baseVertex = gMeshlets[mi].baseVertex;
+        shortRefs = gMeshlets[mi].shortRefs == 1u;
     }
 
-    NiagaraMeshTaskCommand command = gTaskCommands[ci & 0xFFFFFF];
-    uint mi = command.taskOffset + (ci >> 24);
-
-    NiagaraMeshDraw meshDraw = gDraws[command.drawId];
-
-    uint vertexCount = gMeshlets[mi].vertexCount;
-    uint triangleCount = gMeshlets[mi].triangleCount;
-
+    // SetMeshOutputCounts must be called exactly once per thread group
     SetMeshOutputCounts(vertexCount, triangleCount);
 
-    uint dataOffset = gMeshlets[mi].dataOffset;
-    uint baseVertex = gMeshlets[mi].baseVertex;
-    bool shortRefs = gMeshlets[mi].shortRefs == 1;
+    if (ci == 0xFFFFFFFF)
+        return;
+
+    NiagaraMeshDraw meshDraw = gDraws[command.drawId];
     uint vertexOffset = dataOffset;
     uint indexOffset = dataOffset + (shortRefs ? (vertexCount + 1) / 2 : vertexCount);
 
@@ -210,7 +217,8 @@ struct NiagaraMaterial
 };
 
 StructuredBuffer<NiagaraMaterial> gMaterials : register(t6);
-Texture2D gTextures[] : register(t7);
+static const uint kMaxTextures = 64;
+Texture2D gTextures[kMaxTextures] : register(t7);
 SamplerState gSampler : register(s0);
 
 float2 encodeOctPS(float3 v)
@@ -251,7 +259,7 @@ PSOut psMain(MeshVertexOut inData)
 
     float4 albedo = material.diffuseFactor;
     if (material.albedoTexture > 0)
-        albedo *= fromSrgbPS(gTextures[material.albedoTexture].Sample(gSampler, inData.uv));
+        albedo *= float4(fromSrgbPS(gTextures[material.albedoTexture].Sample(gSampler, inData.uv).rgb), 1.0);
 
     float3 nmap = float3(0, 0, 1);
     if (material.normalTexture > 0)
@@ -259,11 +267,11 @@ PSOut psMain(MeshVertexOut inData)
 
     float4 specgloss = material.specularFactor;
     if (material.specularTexture > 0)
-        specgloss *= fromSrgbPS(gTextures[material.specularTexture].Sample(gSampler, inData.uv));
+        specgloss *= float4(fromSrgbPS(gTextures[material.specularTexture].Sample(gSampler, inData.uv).rgb), 1.0);
 
     float3 emissive = material.emissiveFactor;
     if (material.emissiveTexture > 0)
-        emissive *= fromSrgbPS(gTextures[material.emissiveTexture].Sample(gSampler, inData.uv)).rgb;
+        emissive *= fromSrgbPS(gTextures[material.emissiveTexture].Sample(gSampler, inData.uv).rgb);
 
     float3 bitangent = cross(inData.normal, inData.tangent.xyz) * inData.tangent.w;
     float3 nrm = normalize(nmap.r * inData.tangent.xyz + nmap.g * bitangent + nmap.b * inData.normal);

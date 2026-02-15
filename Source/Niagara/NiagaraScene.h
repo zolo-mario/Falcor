@@ -13,15 +13,15 @@ struct alignas(8) NiagaraMeshlet
 {
     uint16_t center[3];
     uint16_t radius;
-    int8_t cone_axis[3];
-    int8_t cone_cutoff;
+    int16_t cone_axis[3];
+    int16_t cone_cutoff;
 
     uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
     uint32_t baseVertex;
-    uint8_t vertexCount;
-    uint8_t triangleCount;
-    uint8_t shortRefs;
-    uint8_t padding;
+    uint16_t vertexCount;
+    uint16_t triangleCount;
+    uint16_t shortRefs;
+    uint16_t padding;
 };
 
 struct alignas(16) NiagaraMaterial

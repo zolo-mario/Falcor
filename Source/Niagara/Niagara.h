@@ -44,4 +44,5 @@ private:
     std::vector<ref<Texture>> mpTextures;
 
     uint32_t mTotalMeshletCount = 0;
+    uint32_t mSceneIndex = 0;
 };

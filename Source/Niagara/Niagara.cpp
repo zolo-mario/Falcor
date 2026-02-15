@@ -9,8 +9,22 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-static const std::string kDefaultScene = "Arcade/Arcade.pyscene";
 static const char kMeshShaderFile[] = "Niagara/shaders/NiagaraMeshlet.ms.slang";
+static const uint32_t kMaxTextures = 64;
+
+static const std::vector<std::string> kScenePaths = {
+    "test_scenes/bunny.pyscene",
+    "Arcade/Arcade.pyscene",
+    "test_scenes/cornell_box.pyscene",
+    "test_scenes/cesium_man/CesiumMan.pyscene",
+};
+
+static const Gui::DropdownList kSceneDropdownList = {
+    {0, "Bunny"},
+    {1, "Arcade"},
+    {2, "Cornell Box"},
+    {3, "Cesium Man"},
+};
 
 uint32_t mSampleGuiWidth = 250;
 uint32_t mSampleGuiHeight = 200;
@@ -158,6 +172,7 @@ void Niagara::uploadSceneBuffers(RenderContext* pRenderContext)
     ref<Texture> pWhiteTex = pDevice->createTexture2D(1, 1, ResourceFormat::RGBA8UnormSrgb, 1, 1, &whitePixel, ResourceBindFlags::ShaderResource);
 
     mpTextures.resize(std::max(1u, maxTexIndex + 1), pWhiteTex);
+    mpTextures.resize(kMaxTextures, pWhiteTex);
     for (uint32_t i = 0; i < texturePaths.size() && i + 1 < mpTextures.size(); ++i)
     {
         std::filesystem::path path(texturePaths[i]);
@@ -201,7 +216,7 @@ void Niagara::uploadSceneBuffers(RenderContext* pRenderContext)
 
 void Niagara::onLoad(RenderContext* pRenderContext)
 {
-    loadScene(pRenderContext, kDefaultScene);
+    loadScene(pRenderContext, kScenePaths[mSceneIndex]);
 }
 
 void Niagara::onShutdown() {}
@@ -213,14 +228,15 @@ void Niagara::onResize(uint32_t width, uint32_t height)
 
     auto pDevice = getDevice();
     mpFbo = Fbo::create(pDevice);
+    auto rtSrvFlags = ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource;
     mpFbo->attachColorTarget(
-        pDevice->createTexture2D(width, height, ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget),
+        pDevice->createTexture2D(width, height, ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, rtSrvFlags),
         0);
     mpFbo->attachColorTarget(
-        pDevice->createTexture2D(width, height, ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget),
+        pDevice->createTexture2D(width, height, ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, rtSrvFlags),
         1);
     mpFbo->attachColorTarget(
-        pDevice->createTexture2D(width, height, ResourceFormat::R32Uint, 1, 1, nullptr, ResourceBindFlags::RenderTarget),
+        pDevice->createTexture2D(width, height, ResourceFormat::R32Uint, 1, 1, nullptr, rtSrvFlags),
         2);
     mpFbo->attachDepthStencilTarget(
         pDevice->createTexture2D(width, height, ResourceFormat::D32Float, 1, 1, nullptr, ResourceBindFlags::DepthStencil));
@@ -264,7 +280,7 @@ void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     var["gMaterials"] = mpMtb;
     var["gSampler"] = pRenderContext->getDevice()->getDefaultSampler();
 
-    for (size_t i = 0; i < mpTextures.size(); ++i)
+    for (uint32_t i = 0; i < kMaxTextures; ++i)
     {
         var["gTextures"][i] = mpTextures[i];
     }
@@ -279,8 +295,12 @@ void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 void Niagara::onGuiRender(Gui* pGui)
 {
-    Gui::Window w(pGui, "Niagara", {250, 200});
+    Gui::Window w(pGui, "Niagara", {250, 250});
     renderGlobalUI(pGui);
+    if (w.dropdown("Scene", kSceneDropdownList, mSceneIndex))
+    {
+        loadScene(getRenderContext(), kScenePaths[mSceneIndex]);
+    }
     w.text("Meshlet -> Mesh Shader -> PS (meshlet ID)");
     w.text(fmt::format("Meshlets: {}", mTotalMeshletCount));
 }
@@ -301,7 +321,10 @@ int runMain(int argc, char** argv)
 {
     SampleAppConfig config;
     config.windowDesc.title = "Niagara";
+    config.windowDesc.width = 800;
+    config.windowDesc.height = 600;
     config.windowDesc.resizableWindow = true;
+    config.generateShaderDebugInfo = true;
 
     Niagara project(config);
     return project.run();
