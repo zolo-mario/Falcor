@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build the Falcor rendering framework and its plugins. Use when the user asks to build, compile, rebuild Falcor, build a specific render pass or plugin, or run build-related commands.
+description: Build the Falcor rendering framework and its plugins. Use when the user asks to build, compile, rebuild Falcor, build Niagara, build a specific render pass or plugin, or run build-related commands.
 ---
 
 # Falcor Build
@@ -12,7 +12,7 @@ description: Build the Falcor rendering framework and its plugins. Use when the 
 cmake --build build/windows-vs2022 --config Debug
 ```
 
-**Build specific target** (e.g., GBuffer, PathTracer):
+**Build specific target** (e.g., Niagara, GBuffer, PathTracer):
 ```bash
 cmake --build build/windows-vs2022 --config Debug --target <TARGET_NAME>
 ```
@@ -34,7 +34,7 @@ build_vs2022.bat
 | Category | Examples |
 |----------|----------|
 | RenderPasses | GBuffer, PathTracer, RTXDIPass, TAA, ToneMapper, AccumulatePass, SVGFPass, DLSSPass, DebugPasses, Utils |
-| Apps | Mogwai, FalcorTest, ImageCompare, RenderGraphEditor |
+| Apps | Mogwai, Niagara, FalcorTest, ImageCompare, RenderGraphEditor |
 
 Target name = folder name in Source/RenderPasses (e.g., `GBuffer`, `PathTracer`).
 

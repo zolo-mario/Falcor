@@ -1,7 +1,10 @@
 #include "Niagara.h"
 #include "Utils/CrashHandler.h"
+#include "Scene/SceneBuilder.h"
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
+
+static const std::string kDefaultScene = "Arcade/Arcade.pyscene";
 
 uint32_t mSampleGuiWidth = 250;
 uint32_t mSampleGuiHeight = 200;
@@ -13,25 +16,37 @@ Niagara::Niagara(const SampleAppConfig& config) : SampleApp(config)
      //
  }
  
- Niagara::~Niagara()
- {
-     //
- }
+Niagara::~Niagara() = default;
+
+void Niagara::loadScene(const std::filesystem::path& path, SceneBuilder::Flags buildFlags)
+{
+    mpScene = SceneBuilder(getDevice(), path, getSettings(), buildFlags).getScene();
+    if (mpScene)
+    {
+        const auto& pFbo = getTargetFbo();
+        float ratio = float(pFbo->getWidth()) / float(pFbo->getHeight());
+        mpScene->setCameraAspectRatio(ratio);
+    }
+}
  
- void Niagara::onLoad(RenderContext* pRenderContext)
- {
-     //
- }
+void Niagara::onLoad(RenderContext* pRenderContext)
+{
+    loadScene(kDefaultScene);
+}
  
  void Niagara::onShutdown()
  {
      //
  }
  
- void Niagara::onResize(uint32_t width, uint32_t height)
- {
-     //
- }
+void Niagara::onResize(uint32_t width, uint32_t height)
+{
+    if (mpScene)
+    {
+        float ratio = float(width) / float(height);
+        mpScene->setCameraAspectRatio(ratio);
+    }
+}
  
  void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
  {

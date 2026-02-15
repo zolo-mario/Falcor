@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
+description: Run Falcor applications, tests, and scripts. Use when the user asks to run Mogwai, run Niagara, execute tests, run image tests, run unit tests (including SlangUserGuide), run Python tests, run a headless script, run balls.py or other Falcor Python scripts with packman Python, or launch Falcor applications.
 ---
 
 # Falcor Run
@@ -15,6 +15,7 @@ description: Run Falcor applications, tests, and scripts. Use when the user asks
 | View image test results | `tests/view_image_tests.bat` |
 | Mogwai headless script | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
 | Mogwai interactive | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
+| Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
 | Packman Python (balls.py etc.) | `tools/.packman/python/python.exe` with `PYTHONPATH` and `PATH` set |
 
 Run `.bat` scripts from the project root (e.g., `F:/Falcor`).
@@ -32,6 +33,20 @@ Run `.bat` scripts from the project root (e.g., `F:/Falcor`).
 ```
 
 Swap `Debug` for `Release` if built with that config.
+
+## Niagara
+
+**Run** (SampleApp, loads default scene `Arcade/Arcade.pyscene`):
+```bash
+./build/windows-vs2022/bin/Debug/Niagara.exe
+```
+
+Set `FALCOR_MEDIA_FOLDERS` to the media directory (e.g., `F:/Falcor/media`) if the default scene path does not resolve.
+
+**Build** Niagara first:
+```bash
+cmake --build build/windows-vs2022 --config Debug --target Niagara
+```
 
 ## Test Suites
 
@@ -69,7 +84,7 @@ tests/view_image_tests.bat
 | Debug | `build/windows-vs2022/bin/Debug/` |
 | Release | `build/windows-vs2022/bin/Release/` |
 
-Executables: `Mogwai.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`
+Executables: `Mogwai.exe`, `Niagara.exe`, `FalcorTest.exe`, `ImageCompare.exe`, `RenderGraphEditor.exe`
 
 ## Packman Python (Falcor Python scripts)
 
