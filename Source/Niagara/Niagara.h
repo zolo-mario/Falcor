@@ -2,6 +2,7 @@
 #include "Falcor.h"
 #include "Core/SampleApp.h"
 #include "Scene/SceneBuilder.h"
+#include "NiagaraScene.h"
 
 using namespace Falcor;
 
@@ -21,7 +22,7 @@ public:
     void onHotReload(HotReloadFlags reloaded) override;
 
 private:
-    void loadScene(const std::filesystem::path& path, SceneBuilder::Flags buildFlags = SceneBuilder::Flags::Default);
+    void loadScene(RenderContext* pRenderContext, const std::filesystem::path& path, SceneBuilder::Flags buildFlags = SceneBuilder::Flags::Default);
 
-    ref<Scene> mpScene;
+    Falcor::NiagaraScene mpNiagaraScene;
 };

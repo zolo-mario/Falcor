@@ -443,9 +443,9 @@ file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/settings.json CONTENT "{ \"stand
 
 # Make Mogwai and FalcorPython depend on all plugins.
 if(plugin_targets)
-    add_dependencies(Mogwai ${plugin_targets})
+    # add_dependencies(Mogwai ${plugin_targets})
     add_dependencies(FalcorPython ${plugin_targets})
-    add_dependencies(Mogwai FalcorPython)
+    # add_dependencies(Mogwai FalcorPython)
 endif()
 
 # Make Mogwai the default startup project in VS.

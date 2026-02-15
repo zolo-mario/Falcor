@@ -15,45 +15,39 @@ Niagara::Niagara(const SampleAppConfig& config) : SampleApp(config)
  {
      //
  }
- 
+
 Niagara::~Niagara() = default;
 
-void Niagara::loadScene(const std::filesystem::path& path, SceneBuilder::Flags buildFlags)
+void Niagara::loadScene(RenderContext* pRenderContext, const std::filesystem::path& path, SceneBuilder::Flags buildFlags)
 {
-    mpScene = SceneBuilder(getDevice(), path, getSettings(), buildFlags).getScene();
-    if (mpScene)
+    ref<Scene> pScene = SceneBuilder(getDevice(), path, getSettings(), buildFlags).getScene();
+    if (pScene)
     {
-        const auto& pFbo = getTargetFbo();
-        float ratio = float(pFbo->getWidth()) / float(pFbo->getHeight());
-        mpScene->setCameraAspectRatio(ratio);
+        convertFalcorSceneToNiagaraScene(pScene.get(), mpNiagaraScene, true, false, false);
     }
 }
- 
+
 void Niagara::onLoad(RenderContext* pRenderContext)
 {
-    loadScene(kDefaultScene);
+    loadScene(pRenderContext, kDefaultScene);
 }
- 
+
  void Niagara::onShutdown()
  {
      //
  }
- 
+
 void Niagara::onResize(uint32_t width, uint32_t height)
 {
-    if (mpScene)
-    {
-        float ratio = float(width) / float(height);
-        mpScene->setCameraAspectRatio(ratio);
-    }
+    //
 }
- 
+
  void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
  {
      const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
      pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
  }
- 
+
 void Niagara::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "Niagara", {250, 200});
@@ -64,22 +58,22 @@ void Niagara::onGuiRender(Gui* pGui)
          msgBox("Info", "Now why would you do that?");
      }
  }
- 
+
  bool Niagara::onKeyEvent(const KeyboardEvent& keyEvent)
  {
      return false;
  }
- 
+
  bool Niagara::onMouseEvent(const MouseEvent& mouseEvent)
  {
      return false;
  }
- 
+
  void Niagara::onHotReload(HotReloadFlags reloaded)
  {
      //
  }
- 
+
 int runMain(int argc, char** argv)
 {
     SampleAppConfig config;

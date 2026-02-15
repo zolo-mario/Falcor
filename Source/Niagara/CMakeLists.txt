@@ -1,8 +1,11 @@
 add_falcor_executable(Niagara)
 
+target_link_libraries(Niagara PRIVATE meshoptimizer)
+
 target_sources(Niagara PRIVATE
     Niagara.cpp
     Niagara.h
+    NiagaraConfig.h
     NiagaraScene.cpp
     NiagaraScene.h
 )

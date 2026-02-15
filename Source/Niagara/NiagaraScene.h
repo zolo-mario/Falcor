@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace Niagara
+namespace Falcor
 {
 
 struct alignas(8) NiagaraMeshlet
@@ -104,5 +104,38 @@ struct NiagaraScene
     NiagaraCamera camera;
     float3 sunDirection;
 };
+
+/** Build meshlets from positions and indices, append to geometry.
+ *  Performs vertex cache optimization, then meshlet generation (fast/default/spatial mode).
+ *  \param geometry Target geometry to append meshlets to
+ *  \param positions Vertex positions (float3)
+ *  \param indices Triangle indices (modified in-place by vertex cache optimization)
+ *  \param baseVertex Base vertex offset for this mesh
+ *  \param lod0 If true, also writes meshletvtx0 for ray tracing
+ *  \param fast Use fast scan mode (meshopt_buildMeshletsScan)
+ *  \param clrt Cluster ray tracing: use spatial mode for lod0
+ *  \return Number of meshlets appended
+ */
+size_t buildMeshlets(NiagaraGeometry& geometry,
+    const std::vector<float3>& positions,
+    std::vector<uint32_t>& indices,
+    uint32_t baseVertex,
+    bool lod0,
+    bool fast = false,
+    bool clrt = false);
+
+/** Convert Falcor Scene to NiagaraScene, building meshlets for each mesh.
+ *  \param pScene Falcor scene (must have meshes)
+ *  \param outScene Output NiagaraScene
+ *  \param doBuildMeshlets Enable meshlet generation
+ *  \param fast Use fast meshlet build mode
+ *  \param clrt Use cluster RT spatial mode for LOD 0
+ *  \return true if conversion succeeded
+ */
+bool convertFalcorSceneToNiagaraScene(Scene* pScene,
+                                      NiagaraScene& outScene,
+                                      bool doBuildMeshletsParam = true,
+                                      bool fast = false,
+                                      bool clrt = false);
 
 } // namespace Falcor
