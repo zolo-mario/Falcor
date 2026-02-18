@@ -18,6 +18,8 @@ target_sources(FalcorTest PRIVATE
     Testing/UnitTest.cs.slang
     Testing/UnitTest.h
 
+    Multithread/MemoryOrderTests.cpp
+
     # Tests/Core/AftermathTests.cpp
     # Tests/Core/AftermathTests.cs.slang
     # Tests/Core/AssetResolverTests.cpp

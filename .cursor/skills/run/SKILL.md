@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogwai、Niagara、构建、执行测试、图像测试、单元测试（含 SlangUserGuide）、Python 测试、headless 脚本、balls.py 等 Falcor Python 脚本（使用 packman Python）或启动 Falcor 应用时使用。
+description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogwai、Niagara、构建、执行测试、图像测试、单元测试（含 SlangUserGuide、MemoryOrder 多线程测试）、Python 测试、headless 脚本、balls.py 等 Falcor Python 脚本（使用 packman Python）或启动 Falcor 应用时使用。
 ---
 
 # Falcor 运行
@@ -11,7 +11,8 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogw
 |------|------|
 | **构建** | `build_vs2022.bat` 或 `.\build_vs2022.ps1` |
 | 构建指定 target | `.\build_vs2022.ps1 --target D3D12HelloTriangle` |
-| 单元测试 (C++) | `tests/run_unit_tests.bat` |
+| 单元测试 (C++) | `tests/run_unit_tests.bat` 或 `.\tests\run_unit_tests.bat` |
+| MemoryOrder 单元测试 | `.\tests\run_unit_tests.bat --test-case MemoryOrder` |
 | 图像测试 | `tests/run_image_tests.bat` |
 | Python 测试 | `tests/run_python_tests.bat`（需 conda） |
 | 查看图像测试结果 | `tests/view_image_tests.bat` |
@@ -65,6 +66,11 @@ tests/run_unit_tests.bat
 **运行指定测试套件**（如 SlangUserGuide）：
 ```bash
 tests/run_unit_tests.bat --test-suite HelloWorldTests
+```
+
+**运行 MemoryOrder 多线程/内存序测试**（`Source/Tools/FalcorTest/Multithread/MemoryOrderTests.cpp`）：
+```bash
+.\tests\run_unit_tests.bat --test-case MemoryOrder
 ```
 
 **图像测试**（基于 Mogwai）：
