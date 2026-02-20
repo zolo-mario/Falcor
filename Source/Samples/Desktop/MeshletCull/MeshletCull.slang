@@ -96,20 +96,20 @@ float3 rotateVector(float3 v0, float3 axis, float angle)
     return cs * v0 + sin(angle) * cross(axis, v0) + (1 - cs) * dot(axis, v0) * axis;
 }
 
-// Resource bindings
-ConstantBuffer<Constants> gConstants : register(b0);
-ConstantBuffer<MeshInfo> gMeshInfo : register(b1);
-ConstantBuffer<Instance> gInstance : register(b2);
-StructuredBuffer<Vertex> gVertices : register(t0);
-StructuredBuffer<Meshlet> gMeshlets : register(t1);
-ByteAddressBuffer gUniqueVertexIndices : register(t2);
-StructuredBuffer<uint> gPrimitiveIndices : register(t3);
-StructuredBuffer<CullData> gMeshletCullData : register(t4);
+// Resource bindings (StructuredBuffer for Falcor buffer binding; gConstants/gMeshInfo/gInstance are single-element)
+StructuredBuffer<Constants> gConstants : register(t0);
+StructuredBuffer<MeshInfo> gMeshInfo : register(t1);
+StructuredBuffer<Instance> gInstance : register(t2);
+StructuredBuffer<Vertex> gVertices : register(t3);
+StructuredBuffer<Meshlet> gMeshlets : register(t4);
+ByteAddressBuffer gUniqueVertexIndices : register(t5);
+StructuredBuffer<uint> gPrimitiveIndices : register(t6);
+StructuredBuffer<CullData> gMeshletCullData : register(t7);
 
 // Amplification Shader
 bool isVisible(CullData c, float4x4 world, float scale, float3 viewPos)
 {
-    if ((gInstance.Flags & CULL_FLAG) == 0)
+    if ((gInstance[0].Flags & CULL_FLAG) == 0)
         return true;
 
     float4 center = mul(float4(c.BoundingSphere.xyz, 1), world);
@@ -117,7 +117,7 @@ bool isVisible(CullData c, float4x4 world, float scale, float3 viewPos)
 
     for (int i = 0; i < 6; ++i)
     {
-        if (dot(center, gConstants.Planes[i]) < -radius)
+        if (dot(center, gConstants[0].Planes[i]) < -radius)
             return false;
     }
 
@@ -144,13 +144,13 @@ void ampMain(
     in uint gid : SV_GroupID)
 {
     bool visible = false;
-    if (dtid < gMeshInfo.MeshletCount)
+    if (dtid < gMeshInfo[0].MeshletCount)
     {
         visible = isVisible(
             gMeshletCullData[dtid],
-            gInstance.World,
-            gInstance.Scale,
-            gConstants.CullViewPosition);
+            gInstance[0].World,
+            gInstance[0].Scale,
+            gConstants[0].CullViewPosition);
     }
 
     if (visible)
@@ -173,7 +173,7 @@ uint3 unpackPrimitive(uint primitive)
 uint getVertexIndex(Meshlet m, uint localIndex)
 {
     uint idx = m.VertOffset + localIndex;
-    if (gMeshInfo.IndexSize == 4)
+    if (gMeshInfo[0].IndexSize == 4)
         return gUniqueVertexIndices.Load(idx * 4);
     uint wordOffset = idx & 0x1;
     uint byteOffset = (idx / 2) * 4;
@@ -189,11 +189,11 @@ uint3 getPrimitive(Meshlet m, uint index)
 VertexOut getVertexAttributes(uint meshletIndex, uint vertexIndex)
 {
     Vertex v = gVertices[vertexIndex];
-    float4 positionWS = mul(float4(v.Position, 1), gInstance.World);
+    float4 positionWS = mul(float4(v.Position, 1), gInstance[0].World);
     VertexOut vout;
-    vout.PositionVS = mul(positionWS, gConstants.View).xyz;
-    vout.PositionHS = mul(positionWS, gConstants.ViewProj);
-    vout.Normal = mul(float4(v.Normal, 0), gInstance.WorldInvTrans).xyz;
+    vout.PositionVS = mul(positionWS, gConstants[0].View).xyz;
+    vout.PositionHS = mul(positionWS, gConstants[0].ViewProj);
+    vout.Normal = mul(float4(v.Normal, 0), gInstance[0].WorldInvTrans).xyz;
     vout.MeshletIndex = meshletIndex;
     return vout;
 }
@@ -209,11 +209,11 @@ void meshMain(
     in uint gtid : SV_GroupThreadID,
     in uint gid : SV_GroupID,
     in payload Payload payload,
-    out vertices VertexOut verts[MAX_VERTS],
-    out indices uint3 tris[MAX_PRIMS])
+    OutputVertices<VertexOut, MAX_VERTS> verts,
+    OutputIndices<uint3, MAX_PRIMS> tris)
 {
     uint meshletIndex = payload.MeshletIndices[gid];
-    if (meshletIndex >= gMeshInfo.MeshletCount)
+    if (meshletIndex >= gMeshInfo[0].MeshletCount)
         return;
 
     Meshlet m = gMeshlets[meshletIndex];
@@ -246,18 +246,18 @@ float4 psMain(VertexOut pin) : SV_TARGET
     float3 color = 0.8;
     float shininess = 16;
 
-    if (gConstants.DrawMeshlets && (gInstance.Flags & MESHLET_FLAG) != 0)
+    if (gConstants[0].DrawMeshlets && (gInstance[0].Flags & MESHLET_FLAG) != 0)
     {
         color = float3(
             float(pin.MeshletIndex & 1),
             float(pin.MeshletIndex & 3) / 4,
             float(pin.MeshletIndex & 7) / 8);
 
-        if (gConstants.HighlightedIndex != 0xFFFFFFFF ||
-            gConstants.SelectedIndex != 0xFFFFFFFF)
+        if (gConstants[0].HighlightedIndex != 0xFFFFFFFF ||
+            gConstants[0].SelectedIndex != 0xFFFFFFFF)
         {
-            if (pin.MeshletIndex != gConstants.SelectedIndex &&
-                pin.MeshletIndex != gConstants.HighlightedIndex)
+            if (pin.MeshletIndex != gConstants[0].SelectedIndex &&
+                pin.MeshletIndex != gConstants[0].HighlightedIndex)
             {
                 color = lerp(color, luminosity(color) + 0.2, 0.8);
             }

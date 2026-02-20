@@ -1,9 +1,9 @@
-add_falcor_executable(MeshletCull)
+add_plugin(MeshletCull)
 
 target_sources(MeshletCull PRIVATE
     MeshletCull.cpp
     MeshletCull.h
-    MeshletCull.slang
+    MeshletCullBunny.slang
 )
 
 target_copy_shaders(MeshletCull Samples/Desktop/MeshletCull)
