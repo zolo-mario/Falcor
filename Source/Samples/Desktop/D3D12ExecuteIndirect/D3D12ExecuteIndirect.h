@@ -1,14 +1,18 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class D3D12ExecuteIndirect : public SampleApp
+class D3D12ExecuteIndirect : public SampleBase
 {
 public:
-    D3D12ExecuteIndirect(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(D3D12ExecuteIndirect, "D3D12ExecuteIndirect", SampleBase::PluginInfo{"Samples/Desktop/D3D12ExecuteIndirect"});
+
+    explicit D3D12ExecuteIndirect(SampleApp* pHost);
     ~D3D12ExecuteIndirect();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;
@@ -38,7 +42,6 @@ private:
         float4 offset;
         float4 color;
         float4x4 projection;
-        float padding[36]; // 256-byte aligned
     };
 
     struct DrawIndirectCommand
@@ -60,10 +63,16 @@ private:
 
     ref<ComputePass> mpCullPass;
     ref<ProgramVars> mpCullVars;
+    ref<ComputePass> mpBuildArgsPass;
+    ref<ProgramVars> mpBuildArgsVars;
 
-    ref<Buffer> mpConstantBuffer;
-    ref<Buffer> mpCommandBuffer;           // Full indirect commands (all triangles)
-    ref<Buffer> mpProcessedCommandBuffer;  // AppendStructuredBuffer output (visible only)
+    ref<Buffer> mpConstantBuffers[kFrameCount];
+    ref<Buffer> mpCommandBuffer;           // Full indirect commands (all triangles) - non-culling path
+    ref<Buffer> mpVisibleIndicesBuffer;   // AppendStructuredBuffer<uint> output (visible triangle indices)
+    ref<Buffer> mpDrawArgsBuffer;          // (3, count, 0, 0) for single drawIndirect
+
+    ref<Program> mpGraphicsProgramCulling;
+    ref<ProgramVars> mpGraphicsVarsCulling;
 
     std::vector<SceneConstantBuffer> mConstantBufferData;
     uint32_t mFrameIndex = 0;

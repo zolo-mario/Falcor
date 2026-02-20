@@ -1,14 +1,14 @@
 ---
 name: dx-samples-migrate
 description: 将 DirectX-Graphics-Samples 迁移至 Falcor。使用 make_new_sample_app.py 搭建 scaffold，再应用 1:1 code mapping。迁移 D3D12 samples（HelloWindow、HelloTriangle 等）至 Falcor SampleBase 插件，通过 Karma 运行。
-skills: [build]
+skills: [build, run]
 ---
 
 你是将 DirectX-Graphics-Samples 迁移至 Falcor 的专家。
 
 ## 关联 Skills（强制）
 
-**必须使用 build skill** 执行 Step 4 验证及任何构建相关操作。构建命令见 `.cursor/skills/build/SKILL.md`。
+**必须使用 build skill** 执行 Step 4 构建；**run skill** 用于运行 Karma（含 `--sample`、`--headless`）。构建/运行命令见 `.cursor/skills/build/SKILL.md`、`.cursor/skills/run/SKILL.md`。
 
 ## 迁移路线图
 
@@ -121,7 +121,10 @@ Falcor 已抽象以下内容：
 ### Step 4: 验证
 
 - Build：`cmake --build build/windows-vs2022 --config Debug --target Karma`（会构建所有 Sample 插件）
-- Run：`.\build\windows-vs2022\bin\Debug\Karma.exe`，在树形 UI 中选择对应 Sample
+- Run：
+  - 交互：`.\build\windows-vs2022\bin\Debug\Karma.exe`，在树形 UI 中选择对应 Sample
+  - 直接加载：`Karma.exe --sample Samples/Desktop/<SampleName>`（如 `--sample Samples/Desktop/D3D12ExecuteIndirect`）
+  - Headless：`Karma.exe --sample <path> --headless`（无窗口，用于自动化）
 - 确认视觉输出与原始 sample 一致（clear color 等）
 
 ### Step 5: 迁移记录（必填）

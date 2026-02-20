@@ -9,15 +9,6 @@ struct SceneConstantBuffer
     float4 offset;
     float4 color;
     float4x4 projection;
-    float4 padding[9];
-};
-
-struct DrawIndirectCommand
-{
-    uint vertexCount;
-    uint instanceCount;
-    uint firstVertex;
-    uint firstInstance;
 };
 
 cbuffer RootConstants : register(b0)
@@ -29,7 +20,7 @@ cbuffer RootConstants : register(b0)
 };
 
 StructuredBuffer<SceneConstantBuffer> cbv : register(t0);           // SRV: Constant buffers
-AppendStructuredBuffer<DrawIndirectCommand> outputCommands : register(u0); // UAV: Processed (visible) commands
+AppendStructuredBuffer<uint> outputVisibleIndices : register(u0);    // UAV: Visible triangle indices (for gSceneCB[index])
 
 [shader("compute")]
 [numthreads(threadBlockSize, 1, 1)]
@@ -40,24 +31,20 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
     if (index < (uint)commandCount)
     {
         // Project the left and right bounds of the triangle into homogenous space
-        float4 left = float4(-xOffset, 0.0f, zOffset, 1.0f) + cbv[index].offset;
-        left = mul(left, cbv[index].projection);
+        // 与 Shaders.slang 一致：z 取反以匹配 Falcor RH 投影
+        float4 left = float4(-xOffset, 0.0f, -zOffset, 1.0f) + float4(cbv[index].offset.xy, -cbv[index].offset.z, cbv[index].offset.w);
+        left = mul(cbv[index].projection, left);
         left /= left.w;
 
-        float4 right = float4(xOffset, 0.0f, zOffset, 1.0f) + cbv[index].offset;
-        right = mul(right, cbv[index].projection);
+        float4 right = float4(xOffset, 0.0f, -zOffset, 1.0f) + float4(cbv[index].offset.xy, -cbv[index].offset.z, cbv[index].offset.w);
+        right = mul(cbv[index].projection, right);
         right /= right.w;
 
         // Only draw triangles that are within the culling space.
-        // Output (3, 1, 0, index): firstInstance = index for VS to fetch cbv[index]
+        // Append index for VS to use gSceneCB[gVisibleIndices[instanceId]]
         if (-cullOffset < right.x && left.x < cullOffset)
         {
-            DrawIndirectCommand cmd;
-            cmd.vertexCount = 3;
-            cmd.instanceCount = 1;
-            cmd.firstVertex = 0;
-            cmd.firstInstance = index;
-            outputCommands.Append(cmd);
+            outputVisibleIndices.Append(index);
         }
     }
 }
