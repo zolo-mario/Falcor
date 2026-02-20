@@ -193,5 +193,3 @@ target_include_directories(FalcorTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(FalcorTest PRIVATE args Falcor pugixml)
 
 target_copy_shaders(FalcorTest .)
-
-target_source_group(FalcorTest "Tools")

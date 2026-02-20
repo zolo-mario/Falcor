@@ -40,6 +40,9 @@ set(FALCOR_VALIDATE_HEADERS OFF CACHE BOOL "Enable header validation")
 # If enabled, precompiled headers are used to speed up compilation.
 set(FALCOR_PRECOMPILED_HEADERS ON CACHE BOOL "Enable precompiled headers")
 
+# Skip packman dependency pull when .packman file exists (file-driven). Ignored in CI.
+set(FALCOR_SKIP_PACKMAN OFF CACHE BOOL "Skip packman pull when .packman exists (ignored in CI)")
+
 # -----------------------------------------------------------------------------
 # Check platform
 # -----------------------------------------------------------------------------
@@ -90,12 +93,33 @@ elseif(FALCOR_LINUX)
     set(PACKMAN_PLATFORM "linux-x86_64")
 endif()
 
+# Detect CI environment - always run packman in CI (GitHub Actions, etc.)
+if(DEFINED ENV{GITHUB_ACTIONS} AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
+    set(FALCOR_IN_CI TRUE)
+elseif(DEFINED ENV{CI} AND "$ENV{CI}" STREQUAL "true")
+    set(FALCOR_IN_CI TRUE)
+else()
+    set(FALCOR_IN_CI FALSE)
+endif()
+
+# Skip packman pull only when NOT in CI and user has .packman file or FALCOR_SKIP_PACKMAN
+set(FALCOR_SKIP_PACKMAN_PULL FALSE)
+if(NOT FALCOR_IN_CI)
+    if(EXISTS ${CMAKE_SOURCE_DIR}/.packman OR FALCOR_SKIP_PACKMAN)
+        set(FALCOR_SKIP_PACKMAN_PULL TRUE)
+    endif()
+endif()
+
 # Pull dependencies at configure time.
-message(STATUS "Updating packman dependencies ...")
-execute_process(
-    COMMAND ${PACKMAN} pull ${CMAKE_SOURCE_DIR}/dependencies.xml --platform ${PACKMAN_PLATFORM}
-    COMMAND_ERROR_IS_FATAL ANY
-)
+if(FALCOR_SKIP_PACKMAN_PULL)
+    message(STATUS "Skipping packman dependencies (file-driven: .packman exists or FALCOR_SKIP_PACKMAN=ON)")
+else()
+    message(STATUS "Updating packman dependencies ...")
+    execute_process(
+        COMMAND ${PACKMAN} pull ${CMAKE_SOURCE_DIR}/dependencies.xml --platform ${PACKMAN_PLATFORM}
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+endif()
 
 # -----------------------------------------------------------------------------
 # Misc
@@ -203,13 +227,22 @@ message(STATUS "FALCOR_HAS_MDL_SDK: ${FALCOR_HAS_MDL_SDK}")
 
 add_custom_target(packman_dependencies DEPENDS packman_dependencies_stamp)
 set_target_properties(packman_dependencies PROPERTIES FOLDER "Misc")
-add_custom_command(
-    OUTPUT packman_dependencies_stamp
-    COMMAND ${PACKMAN} pull ${CMAKE_SOURCE_DIR}/dependencies.xml --platform ${PACKMAN_PLATFORM}
-    COMMAND ${CMAKE_COMMAND} -E touch packman_dependencies_stamp
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/dependencies.xml
-    COMMENT "Updating packman dependencies"
-)
+if(FALCOR_SKIP_PACKMAN_PULL)
+    add_custom_command(
+        OUTPUT packman_dependencies_stamp
+        COMMAND ${CMAKE_COMMAND} -E touch packman_dependencies_stamp
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/dependencies.xml
+        COMMENT "Skipping packman dependencies (file-driven)"
+    )
+else()
+    add_custom_command(
+        OUTPUT packman_dependencies_stamp
+        COMMAND ${PACKMAN} pull ${CMAKE_SOURCE_DIR}/dependencies.xml --platform ${PACKMAN_PLATFORM}
+        COMMAND ${CMAKE_COMMAND} -E touch packman_dependencies_stamp
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/dependencies.xml
+        COMMENT "Updating packman dependencies"
+    )
+endif()
 
 # -----------------------------------------------------------------------------
 # Shader file handling

@@ -12,6 +12,9 @@
 /external/packman/
 /tools/.packman/
 
+# Packman file-driven skip flag (local use only).
+.packman
+
 # IDE folders.
 /.vs/
 /.vscode/
