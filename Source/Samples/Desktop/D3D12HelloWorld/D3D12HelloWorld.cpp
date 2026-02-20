@@ -2,12 +2,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-uint32_t mSampleGuiWidth = 250;
-uint32_t mSampleGuiHeight = 200;
-uint32_t mSampleGuiPositionX = 20;
-uint32_t mSampleGuiPositionY = 40;
-
-D3D12HelloWorld::D3D12HelloWorld(const SampleAppConfig& config) : SampleApp(config)
+D3D12HelloWorld::D3D12HelloWorld(SampleApp* pHost) : SampleBase(pHost)
 {
     //
 }
@@ -61,17 +56,12 @@ void D3D12HelloWorld::onHotReload(HotReloadFlags reloaded)
     //
 }
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12HelloWorld::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Hello Window";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12HelloWorld project(config);
-    return project.run();
+    return new D3D12HelloWorld(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12HelloWorld>();
 }

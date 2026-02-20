@@ -1,4 +1,4 @@
-add_falcor_executable(MultiSampling)
+add_plugin(MultiSampling)
 
 target_sources(MultiSampling PRIVATE
     MultiSampling.cpp

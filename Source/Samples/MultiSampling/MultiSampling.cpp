@@ -8,7 +8,7 @@ const uint32_t kTriangleCount = 16;
 const uint32_t kSampleCount = 8;
 } // namespace
 
-MultiSampling::MultiSampling(const SampleAppConfig& config) : SampleApp(config) {}
+MultiSampling::MultiSampling(SampleApp* pHost) : SampleBase(pHost) {}
 
 MultiSampling::~MultiSampling() {}
 
@@ -71,20 +71,12 @@ void MultiSampling::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>&
     }
 }
 
-int runMain(int argc, char** argv)
+SampleBase* MultiSampling::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.width = 1024;
-    config.windowDesc.height = 1024;
-    config.windowDesc.resizableWindow = true;
-    config.windowDesc.enableVSync = true;
-    config.windowDesc.title = "Falcor multi-sampling example";
-
-    MultiSampling multiSample(config);
-    return multiSample.run();
+    return new MultiSampling(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, MultiSampling>();
 }

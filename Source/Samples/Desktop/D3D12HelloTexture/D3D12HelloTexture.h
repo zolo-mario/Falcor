@@ -1,14 +1,18 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class D3D12HelloTexture : public SampleApp
+class D3D12HelloTexture : public SampleBase
 {
 public:
-    D3D12HelloTexture(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(D3D12HelloTexture, "D3D12HelloTexture", SampleBase::PluginInfo{"Samples/Desktop/D3D12HelloTexture"});
+
+    explicit D3D12HelloTexture(SampleApp* pHost);
     ~D3D12HelloTexture();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;

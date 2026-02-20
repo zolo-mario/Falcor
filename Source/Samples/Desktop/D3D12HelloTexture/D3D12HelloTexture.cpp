@@ -7,7 +7,7 @@ static constexpr uint32_t kTextureWidth = 256;
 static constexpr uint32_t kTextureHeight = 256;
 static constexpr uint32_t kTexturePixelSize = 4;
 
-D3D12HelloTexture::D3D12HelloTexture(const SampleAppConfig& config) : SampleApp(config) {}
+D3D12HelloTexture::D3D12HelloTexture(SampleApp* pHost) : SampleBase(pHost) {}
 
 D3D12HelloTexture::~D3D12HelloTexture() {}
 
@@ -144,17 +144,12 @@ void D3D12HelloTexture::onHotReload(HotReloadFlags reloaded)
     //
 }
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12HelloTexture::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Hello Texture";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12HelloTexture project(config);
-    return project.run();
+    return new D3D12HelloTexture(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12HelloTexture>();
 }

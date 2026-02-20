@@ -2,7 +2,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-ShaderToy::ShaderToy(const SampleAppConfig& config) : SampleApp(config) {}
+ShaderToy::ShaderToy(SampleApp* pHost) : SampleBase(pHost) {}
 
 ShaderToy::~ShaderToy() {}
 
@@ -48,20 +48,12 @@ void ShaderToy::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTa
     mpMainPass->execute(pRenderContext, pTargetFbo);
 }
 
-int runMain(int argc, char** argv)
+SampleBase* ShaderToy::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.width = 1280;
-    config.windowDesc.height = 720;
-    config.windowDesc.resizableWindow = true;
-    config.windowDesc.enableVSync = true;
-    config.windowDesc.title = "Falcor Shader Toy";
-
-    ShaderToy shaderToy(config);
-    return shaderToy.run();
+    return new ShaderToy(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, ShaderToy>();
 }

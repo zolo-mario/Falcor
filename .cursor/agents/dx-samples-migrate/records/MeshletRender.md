@@ -52,8 +52,8 @@ python tools/make_new_sample_app.py MeshletRender --path Source/Samples/Desktop
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target MeshletRender
-.\build\windows-vs2022\bin\Debug\MeshletRender.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/MeshletRender
 ```
 
 预期：蓝色背景 + Dragon 模型（meshlet 着色模式），WASD 移动，方向键旋转视角。

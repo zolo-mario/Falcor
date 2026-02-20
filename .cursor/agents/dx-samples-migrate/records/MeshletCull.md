@@ -61,8 +61,8 @@ python tools/make_new_sample_app.py MeshletCull --path Source/Samples/Desktop
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target MeshletCull
-.\build\windows-vs2022\bin\Debug\MeshletCull.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/MeshletCull
 ```
 
 预期：蓝色背景 + 单三角形（Blinn-Phong 或 meshlet 着色），Space 切换 meshlet 模式。需要 Shader Model 6.5 和 Mesh Shader 支持。

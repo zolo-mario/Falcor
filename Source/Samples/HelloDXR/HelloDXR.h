@@ -1,15 +1,19 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
 #include "Core/Pass/RasterPass.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class HelloDXR : public SampleApp
+class HelloDXR : public SampleBase
 {
 public:
-    HelloDXR(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(HelloDXR, "HelloDXR", SampleBase::PluginInfo{"Samples/HelloDXR"});
+
+    explicit HelloDXR(SampleApp* pHost);
     ~HelloDXR();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onResize(uint32_t width, uint32_t height) override;

@@ -1,14 +1,18 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class D3D12HelloFrameBuffering : public SampleApp
+class D3D12HelloFrameBuffering : public SampleBase
 {
 public:
-    D3D12HelloFrameBuffering(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(D3D12HelloFrameBuffering, "D3D12HelloFrameBuffering", SampleBase::PluginInfo{"Samples/Desktop/D3D12HelloFrameBuffering"});
+
+    explicit D3D12HelloFrameBuffering(SampleApp* pHost);
     ~D3D12HelloFrameBuffering();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;

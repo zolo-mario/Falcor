@@ -7,7 +7,7 @@ FALCOR_EXPORT_D3D12_AGILITY_SDK
 static const float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
 static const std::string kDefaultScene = "Arcade/Arcade.pyscene";
 
-HelloDXR::HelloDXR(const SampleAppConfig& config) : SampleApp(config) {}
+HelloDXR::HelloDXR(SampleApp* pHost) : SampleBase(pHost) {}
 
 HelloDXR::~HelloDXR() {}
 
@@ -193,17 +193,12 @@ void HelloDXR::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFb
     pRenderContext->blit(mpRtOut->getSRV(), pTargetFbo->getRenderTargetView(0));
 }
 
-int runMain(int argc, char** argv)
+SampleBase* HelloDXR::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "HelloDXR";
-    config.windowDesc.resizableWindow = true;
-
-    HelloDXR helloDXR(config);
-    return helloDXR.run();
+    return new HelloDXR(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, HelloDXR>();
 }

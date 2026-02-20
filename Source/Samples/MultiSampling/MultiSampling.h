@@ -1,15 +1,19 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
 #include "Core/Pass/RasterPass.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class MultiSampling : public SampleApp
+class MultiSampling : public SampleBase
 {
 public:
-    MultiSampling(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(MultiSampling, "MultiSampling", SampleBase::PluginInfo{"Samples/MultiSampling"});
+
+    explicit MultiSampling(SampleApp* pHost);
     ~MultiSampling();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo) override;

@@ -1,6 +1,6 @@
 ---
 name: dx-samples-migrate
-description: 将 DirectX-Graphics-Samples 迁移至 Falcor。使用 make_new_sample_app.py 搭建 scaffold，再应用 1:1 code mapping。迁移 D3D12 samples（HelloWindow、HelloTriangle 等）至 Falcor SampleApp 时主动使用。
+description: 将 DirectX-Graphics-Samples 迁移至 Falcor。使用 make_new_sample_app.py 搭建 scaffold，再应用 1:1 code mapping。迁移 D3D12 samples（HelloWindow、HelloTriangle 等）至 Falcor SampleBase 插件，通过 Karma 运行。
 skills: [build]
 ---
 
@@ -71,29 +71,29 @@ python tools/make_new_sample_app.py <SampleName> [--path PATH]
 ```bash
 python tools/make_new_sample_app.py D3D12HelloWorld --path Source/Samples/Desktop
 ```
-会在 `Source/Samples/Desktop/D3D12HelloWorld/` 下生成 CMakeLists.txt、.h、.cpp。
+会在 `Source/Samples/Desktop/D3D12HelloWorld/` 下生成 CMakeLists.txt、.h、.cpp。模板使用 `add_plugin`、继承 `SampleBase`，Sample 作为插件由 Karma 加载。
 
 ### Step 2: 1:1 Code Mapping
 
-将原始 DirectX sample 按 **1:1 对应** 映射到 Falcor SampleApp：
+将原始 DirectX sample 按 **1:1 对应** 映射到 Falcor SampleBase（Karma 插件）：
 
-| DirectX-Graphics-Samples | Falcor SampleApp |
+| DirectX-Graphics-Samples | Falcor SampleBase |
 |--------------------------|------------------|
 | `DXSample::OnInit()` | `onLoad(RenderContext*)` |
 | `DXSample::OnUpdate()` | （并入 `onFrameRender` 或留空） |
 | `DXSample::OnRender()` | `onFrameRender(RenderContext*, ref<Fbo>&)` |
 | `DXSample::OnDestroy()` | `onShutdown()` |
-| `Win32Application` / window | 由 SampleApp 处理 |
+| `Win32Application` / window | 由 Karma（SampleApp）处理 |
 | `ID3D12Device`、swap chain、command queue | 由 Falcor Device/Swapchain 处理 |
 | `ClearRenderTargetView(clearColor)` | `pRenderContext->clearFbo(..., clearColor, ...)` |
-| `Present()` | 由 SampleApp main loop 处理 |
+| `Present()` | 由 Karma main loop 处理 |
 
 **1:1 mapping 规则：**
 - 保留原始代码中的 **精确常量**（clear color、尺寸、frame count 等）
 - 保留 **逻辑流程** 和控制结构
 - 语义相同时保留 **变量名**
 - 添加注释：`// Match D3D12 Hello Window clear color (0.0f, 0.2f, 0.4f, 1.0f)`
-- 将 `config.windowDesc.title` 映射为原始 sample 的窗口标题
+- Sample 作为插件运行于 Karma，无独立窗口标题
 
 ### Step 3: 简化冗余代码
 
@@ -110,9 +110,9 @@ Falcor 已抽象以下内容：
 
 ### Step 4: 验证
 
-- Build：`cmake --build build/windows-vs2022 --config Debug --target <SampleName>`
-- Run：`.\build\windows-vs2022\bin\Debug\<SampleName>.exe`
-- 确认视觉输出与原始 sample 一致（clear color、窗口标题）
+- Build：`cmake --build build/windows-vs2022 --config Debug --target Karma`（会构建所有 Sample 插件）
+- Run：`.\build\windows-vs2022\bin\Debug\Karma.exe`，在树形 UI 中选择对应 Sample
+- 确认视觉输出与原始 sample 一致（clear color 等）
 
 ### Step 5: 迁移记录（必填）
 

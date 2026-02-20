@@ -62,8 +62,8 @@ Falcor 中：
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12PipelineStateCache
-.\build\windows-vs2022\bin\Debug\D3D12PipelineStateCache.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12PipelineStateCache
 ```
 
 预期：旋转彩色立方体渲染到中间 RT，再以 3x3 网格显示 9 种后处理效果（Blit、Invert、GrayScale、EdgeDetect、Blur、Warp、Pixelate、Distort、Wave）。按 1-9 可切换各 effect 显示。

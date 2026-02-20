@@ -56,8 +56,8 @@ D3D12 原版使用 **Command Signature**：每个 indirect command 含 `D3D12_GP
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12ExecuteIndirect
-.\build\windows-vs2022\bin\Debug\D3D12ExecuteIndirect.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12ExecuteIndirect
 ```
 
 预期：1024 个彩色三角形水平移动，SPACE 切换 culling 开/关（culling 开时仅绘制视口中心区域内的三角形）。

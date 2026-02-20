@@ -2,7 +2,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-D3D12HelloFrameBuffering::D3D12HelloFrameBuffering(const SampleAppConfig& config) : SampleApp(config) {}
+D3D12HelloFrameBuffering::D3D12HelloFrameBuffering(SampleApp* pHost) : SampleBase(pHost) {}
 
 D3D12HelloFrameBuffering::~D3D12HelloFrameBuffering() {}
 
@@ -89,17 +89,12 @@ void D3D12HelloFrameBuffering::onHotReload(HotReloadFlags reloaded)
     //
 }
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12HelloFrameBuffering::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Hello Frame Buffering";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12HelloFrameBuffering project(config);
-    return project.run();
+    return new D3D12HelloFrameBuffering(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12HelloFrameBuffering>();
 }

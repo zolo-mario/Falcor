@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloWorld)
+add_plugin(D3D12HelloWorld)
 
 target_sources(D3D12HelloWorld PRIVATE
     D3D12HelloWorld.cpp

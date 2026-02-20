@@ -2,7 +2,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-D3D12HelloConstantBuffers::D3D12HelloConstantBuffers(const SampleAppConfig& config) : SampleApp(config)
+D3D12HelloConstantBuffers::D3D12HelloConstantBuffers(SampleApp* pHost) : SampleBase(pHost)
 {
     mConstantBufferData = {};
 }
@@ -102,17 +102,12 @@ void D3D12HelloConstantBuffers::onHotReload(HotReloadFlags reloaded)
     //
 }
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12HelloConstantBuffers::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Hello Constant Buffers";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12HelloConstantBuffers project(config);
-    return project.run();
+    return new D3D12HelloConstantBuffers(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12HelloConstantBuffers>();
 }

@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloBundles)
+add_plugin(D3D12HelloBundles)
 
 target_sources(D3D12HelloBundles PRIVATE
     D3D12HelloBundles.cpp

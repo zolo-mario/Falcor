@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloTriangle)
+add_plugin(D3D12HelloTriangle)
 
 target_sources(D3D12HelloTriangle PRIVATE
     D3D12HelloTriangle.cpp

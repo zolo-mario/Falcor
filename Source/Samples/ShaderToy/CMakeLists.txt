@@ -1,4 +1,4 @@
-add_falcor_executable(ShaderToy)
+add_plugin(ShaderToy)
 
 target_sources(ShaderToy PRIVATE
     ShaderToy.cpp

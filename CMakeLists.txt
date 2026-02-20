@@ -277,6 +277,13 @@ function(add_falcor_executable target)
     set_target_properties(${target} PROPERTIES VS_DEBUGGER_ENVIRONMENT "FALCOR_DEVMODE=1")
 endfunction()
 
+# Create a Falcor sample as a static library for Karma sample browser.
+function(add_falcor_sample_library target)
+    add_library(${target} STATIC)
+    target_link_libraries(${target} PRIVATE Falcor)
+    target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/Source)
+endfunction()
+
 # -----------------------------------------------------------------------------
 # Plugins
 # -----------------------------------------------------------------------------
@@ -419,6 +426,7 @@ add_subdirectory(Source/plugins)
 # add_subdirectory(Source/RenderPasses)
 add_subdirectory(Source/Tools)
 add_subdirectory(Source/Samples)
+add_subdirectory(Source/Karma)
 
 add_dependencies(Falcor copy_data_folder copy_scripts_folder)
 
@@ -442,9 +450,10 @@ endif()
 # Generate settings.toml file.
 file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/settings.json CONTENT "{ \"standardsearchpath\" : { \"media\" : \"\${FALCOR_MEDIA_FOLDERS}\", \"mdl\" : \"\${FALCOR_MDL_PATHS}\" }}")
 
-# Make Mogwai and FalcorPython depend on all plugins.
+# Make Mogwai, Karma and FalcorPython depend on all plugins.
 if(plugin_targets)
     # add_dependencies(Mogwai ${plugin_targets})
+    add_dependencies(Karma ${plugin_targets})
     add_dependencies(FalcorPython ${plugin_targets})
     # add_dependencies(Mogwai FalcorPython)
 endif()

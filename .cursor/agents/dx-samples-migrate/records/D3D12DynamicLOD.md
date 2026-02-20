@@ -99,8 +99,8 @@ Falcor/Slang 使用 parameter block，需用 `var["MeshInfo"]`、`var["Vertices"
 ## Build/Run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12DynamicLOD
-.\build\windows-vs2022\bin\Debug\D3D12DynamicLOD.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12DynamicLOD
 ```
 
 **当前状态**：Scaffold 已创建，窗口标题与 clear color 已对齐。完整 mesh shader 管线与资源加载待实现。

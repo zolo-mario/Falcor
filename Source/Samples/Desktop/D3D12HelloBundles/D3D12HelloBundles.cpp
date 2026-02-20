@@ -2,7 +2,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-D3D12HelloBundles::D3D12HelloBundles(const SampleAppConfig& config) : SampleApp(config) {}
+D3D12HelloBundles::D3D12HelloBundles(SampleApp* pHost) : SampleBase(pHost) {}
 
 D3D12HelloBundles::~D3D12HelloBundles() {}
 
@@ -90,17 +90,12 @@ void D3D12HelloBundles::onHotReload(HotReloadFlags reloaded)
     //
 }
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12HelloBundles::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Hello Bundles";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12HelloBundles project(config);
-    return project.run();
+    return new D3D12HelloBundles(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12HelloBundles>();
 }

@@ -2,11 +2,6 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-uint32_t mSampleGuiWidth = 250;
-uint32_t mSampleGuiHeight = 200;
-uint32_t mSampleGuiPositionX = 20;
-uint32_t mSampleGuiPositionY = 40;
-
 static float getRandomColor()
 {
     return (float)(rand() % 100) / 100.0f;

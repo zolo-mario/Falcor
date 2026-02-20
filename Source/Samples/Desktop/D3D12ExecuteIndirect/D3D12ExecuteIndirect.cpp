@@ -3,11 +3,6 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-uint32_t mSampleGuiWidth = 250;
-uint32_t mSampleGuiHeight = 200;
-uint32_t mSampleGuiPositionX = 20;
-uint32_t mSampleGuiPositionY = 40;
-
 D3D12ExecuteIndirect::D3D12ExecuteIndirect(const SampleAppConfig& config) : SampleApp(config) {}
 
 D3D12ExecuteIndirect::~D3D12ExecuteIndirect() {}

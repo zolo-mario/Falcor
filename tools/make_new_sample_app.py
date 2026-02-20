@@ -32,31 +32,37 @@ def to_pascal_case(name: str) -> str:
     return result if result else name
 
 
-def get_template_content(name: str) -> dict:
-    """Return template content with placeholders replaced by name."""
+def get_template_content(name: str, karma_path: str) -> dict:
+    """Return template content with placeholders replaced by name.
+    karma_path: hierarchical path for Karma registration (e.g. Samples/MySample, Samples/Desktop/MySample).
+    """
     return {
-        "CMakeLists.txt": f"""add_falcor_executable({name})
+        "CMakeLists.txt": f"""add_plugin({name})
 
 target_sources({name} PRIVATE
     {name}.cpp
     {name}.h
 )
 
-target_copy_shaders({name} Samples/{name})
+target_copy_shaders({name} {karma_path})
 
 target_source_group({name} "Samples")
 """,
         f"{name}.h": f"""#pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class {name} : public SampleApp
+class {name} : public SampleBase
 {{
 public:
-    {name}(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS({name}, "{name}", SampleBase::PluginInfo{{"{karma_path}"}});
+
+    explicit {name}(SampleApp* pHost);
     ~{name}();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;
@@ -74,12 +80,7 @@ private:
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-uint32_t mSampleGuiWidth = 250;
-uint32_t mSampleGuiHeight = 200;
-uint32_t mSampleGuiPositionX = 20;
-uint32_t mSampleGuiPositionY = 40;
-
-{name}::{name}(const SampleAppConfig& config) : SampleApp(config)
+{name}::{name}(SampleApp* pHost) : SampleBase(pHost)
 {{
     //
 }}
@@ -136,19 +137,14 @@ void {name}::onHotReload(HotReloadFlags reloaded)
     //
 }}
 
-int runMain(int argc, char** argv)
+SampleBase* {name}::create(SampleApp* pHost)
 {{
-    SampleAppConfig config;
-    config.windowDesc.title = "Falcor Project Template";
-    config.windowDesc.resizableWindow = true;
-
-    {name} project(config);
-    return project.run();
+    return new {name}(pHost);
 }}
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {{
-    return catchAndReportAllExceptions([&]() {{ return runMain(argc, argv); }});
+    registry.registerClass<SampleBase, {name}>();
 }}
 """,
     }
@@ -187,7 +183,16 @@ def create_sample(name: str, output_path: Path) -> bool:
 
     dst_dir.mkdir(parents=True)
 
-    templates = get_template_content(name)
+    # Karma path for tree (e.g. Source/Samples/Desktop/MySample -> Samples/Desktop/MySample)
+    output_str = str(output_path).replace("\\", "/")
+    if output_str.startswith("Source/Samples/"):
+        karma_path = output_str[len("Source/"):]
+    elif output_str.startswith("Source/"):
+        karma_path = f"Samples/{output_str[len('Source/'):]}"
+    else:
+        karma_path = f"Samples/{name}"
+
+    templates = get_template_content(name, karma_path)
     for filename, content in templates.items():
         filepath = dst_dir / filename
         print(f"  Writing {filepath.relative_to(root)}")

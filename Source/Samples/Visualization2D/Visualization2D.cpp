@@ -13,7 +13,7 @@ const Gui::DropdownList kModeList = {
 };
 } // namespace
 
-Visualization2D::Visualization2D(const SampleAppConfig& config) : SampleApp(config) {}
+Visualization2D::Visualization2D(SampleApp* pHost) : SampleBase(pHost) {}
 
 Visualization2D::~Visualization2D() {}
 
@@ -135,20 +135,12 @@ void Visualization2D::createRenderPass()
     }
 }
 
-int runMain(int argc, char** argv)
+SampleBase* Visualization2D::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "Falcor 2D Visualization";
-    config.windowDesc.resizableWindow = true;
-    config.windowDesc.width = 1400;
-    config.windowDesc.height = 1000;
-    config.windowDesc.enableVSync = true;
-
-    Visualization2D visualization2D(config);
-    return visualization2D.run();
+    return new Visualization2D(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, Visualization2D>();
 }

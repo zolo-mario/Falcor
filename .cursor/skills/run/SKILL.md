@@ -1,6 +1,6 @@
 ---
 name: falcor-run
-description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogwai、Niagara、构建、执行测试、图像测试、单元测试（含 SlangUserGuide、MemoryOrder 多线程测试）、Python 测试、headless 脚本、balls.py 等 Falcor Python 脚本（使用 packman Python）或启动 Falcor 应用时使用。
+description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Karma、Mogwai、Niagara、构建、执行测试、图像测试、单元测试（含 SlangUserGuide、MemoryOrder 多线程测试）、Python 测试、headless 脚本、balls.py 等 Falcor Python 脚本（使用 packman Python）或启动 Falcor 应用时使用。
 ---
 
 # Falcor 运行
@@ -10,7 +10,7 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogw
 | 操作 | 命令 |
 |------|------|
 | **构建** | `build_vs2022.bat` 或 `.\build_vs2022.ps1` |
-| 构建指定 target | `.\build_vs2022.ps1 --target D3D12HelloTriangle` |
+| 构建指定 target | `.\build_vs2022.ps1 --target Karma` |
 | 单元测试 (C++) | `tests/run_unit_tests.bat` 或 `.\tests\run_unit_tests.bat` |
 | MemoryOrder 单元测试 | `.\tests\run_unit_tests.bat --test-case MemoryOrder` |
 | 图像测试 | `tests/run_image_tests.bat` |
@@ -19,10 +19,21 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogw
 | Mogwai headless 脚本 | `./build/windows-vs2022/bin/Debug/Mogwai.exe --script <SCRIPT> --scene <SCENE> --headless` |
 | Mogwai 交互模式 | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
 | Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
-| D3D12HelloTriangle / D3D12HelloWorld | `./build/windows-vs2022/bin/Debug/<name>.exe` |
+| Karma（Sample 浏览器） | `./build/windows-vs2022/bin/Debug/Karma.exe` |
 | Packman Python (balls.py 等) | `tools/.packman/python/python.exe`，需设置 `PYTHONPATH` 和 `PATH` |
 
 在项目根目录（如 `F:/Falcor`）运行 `.bat`/`.ps1` 脚本。
+
+## Karma（Sample 浏览器）
+
+Samples 作为插件（DLL）注册，通过 Karma 树形 UI 选择运行：
+
+```bash
+./build/windows-vs2022/bin/Debug/Karma.exe
+```
+
+- Samples 位于 `bin/Debug/plugins/`（如 `HelloDXR.dll`）
+- 新 Sample 使用 `make_new_sample_app.py` 生成，继承 `SampleBase`，通过 `add_plugin` 构建
 
 ## Mogwai
 
@@ -51,7 +62,7 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Mogw
 ```bash
 .\build_vs2022.ps1
 .\build_vs2022.ps1 --target Niagara
-.\build_vs2022.ps1 --target D3D12HelloTriangle
+.\build_vs2022.ps1 --target Karma
 ```
 或使用 `build_vs2022.bat`（批处理）。
 
@@ -96,7 +107,7 @@ tests/view_image_tests.bat
 | Debug | `build/windows-vs2022/bin/Debug/` |
 | Release | `build/windows-vs2022/bin/Release/` |
 
-可执行文件：`Mogwai.exe`、`Niagara.exe`、`FalcorTest.exe`、`ImageCompare.exe`、`RenderGraphEditor.exe`、`D3D12HelloTriangle.exe`、`D3D12HelloWorld.exe`
+可执行文件：`Karma.exe`、`Mogwai.exe`、`Niagara.exe`、`FalcorTest.exe`、`ImageCompare.exe`、`RenderGraphEditor.exe`
 
 ## Packman Python（Falcor Python 脚本）
 

@@ -1,15 +1,19 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
 #include "Core/Pass/FullScreenPass.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class ShaderToy : public SampleApp
+class ShaderToy : public SampleBase
 {
 public:
-    ShaderToy(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(ShaderToy, "ShaderToy", SampleBase::PluginInfo{"Samples/ShaderToy"});
+
+    explicit ShaderToy(SampleApp* pHost);
     ~ShaderToy();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onResize(uint32_t width, uint32_t height) override;

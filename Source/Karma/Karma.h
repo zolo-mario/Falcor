@@ -1,18 +1,17 @@
 #pragma once
 #include "Falcor.h"
+#include "Core/SampleApp.h"
 #include "Core/SampleBase.h"
 
 using namespace Falcor;
 
-class D3D12HelloTriangle : public SampleBase
+namespace Karma
+{
+class KarmaApp : public SampleApp
 {
 public:
-    FALCOR_PLUGIN_CLASS(D3D12HelloTriangle, "D3D12HelloTriangle", SampleBase::PluginInfo{"Samples/Desktop/D3D12HelloTriangle"});
-
-    explicit D3D12HelloTriangle(SampleApp* pHost);
-    ~D3D12HelloTriangle();
-
-    static SampleBase* create(SampleApp* pHost);
+    explicit KarmaApp(const SampleAppConfig& config);
+    ~KarmaApp();
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;
@@ -24,16 +23,11 @@ public:
     void onHotReload(HotReloadFlags reloaded) override;
 
 private:
-    struct Vertex
-    {
-        float3 position;
-        float4 color;
-    };
+    void renderSampleTree(Gui* pGui);
+    void selectSample(const std::string& path, const std::string& type);
+    std::vector<std::string> splitPath(const std::string& path);
 
-    ref<Buffer> mpVertexBuffer;
-    ref<Vao> mpVao;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<GraphicsState> mpState;
-    ref<DepthStencilState> mpDepthStencilState;
+    std::unique_ptr<SampleBase> mpActiveSample;
+    std::string mActiveSamplePath;
 };
+} // namespace Karma

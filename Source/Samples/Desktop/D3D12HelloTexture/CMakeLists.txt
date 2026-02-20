@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloTexture)
+add_plugin(D3D12HelloTexture)
 
 target_sources(D3D12HelloTexture PRIVATE
     D3D12HelloTexture.cpp

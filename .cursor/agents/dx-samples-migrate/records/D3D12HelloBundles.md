@@ -48,7 +48,7 @@ D3D12 Hello Bundles 的核心是演示 **Command Bundle**：将 Draw 命令预�
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12HelloBundles
-.\build\windows-vs2022\bin\Debug\D3D12HelloBundles.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12HelloBundles
 ```
 预期：蓝色背景 + 红绿蓝三角形（与 HelloTriangle 相同）。

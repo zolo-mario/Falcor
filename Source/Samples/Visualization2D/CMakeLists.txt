@@ -1,4 +1,4 @@
-add_falcor_executable(Visualization2D)
+add_plugin(Visualization2D)
 
 target_sources(Visualization2D PRIVATE
     Visualization2D.cpp

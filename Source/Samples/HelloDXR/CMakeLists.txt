@@ -1,4 +1,4 @@
-add_falcor_executable(HelloDXR)
+add_plugin(HelloDXR)
 
 target_sources(HelloDXR PRIVATE
     HelloDXR.cpp

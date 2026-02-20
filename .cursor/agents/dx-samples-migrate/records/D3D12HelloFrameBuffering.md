@@ -46,8 +46,8 @@ HelloFrameBuffering 与 HelloTriangle 的**视觉输出完全相同**（蓝色�
 ## Build/run 验证
 
 ```bash
-.\build_vs2022.ps1 --target D3D12HelloFrameBuffering
-.\build\windows-vs2022\bin\Debug\D3D12HelloFrameBuffering.exe
+.\build_vs2022.ps1 --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12HelloFrameBuffering
 ```
 
 预期：蓝色窗口 + 红绿蓝三角形，标题 "D3D12 Hello Frame Buffering"。

@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloFrameBuffering)
+add_plugin(D3D12HelloFrameBuffering)
 
 target_sources(D3D12HelloFrameBuffering PRIVATE
     D3D12HelloFrameBuffering.cpp

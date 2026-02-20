@@ -46,8 +46,8 @@ python tools/make_new_sample_app.py D3D12HelloConstantBuffers --path Source/Samp
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12HelloConstantBuffers
-.\build\windows-vs2022\bin\Debug\D3D12HelloConstantBuffers.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12HelloConstantBuffers
 ```
 
 预期：蓝色背景 + 红绿蓝三角形水平往复移动（offset.x 动画）。

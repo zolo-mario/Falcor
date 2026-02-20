@@ -49,8 +49,8 @@ python tools/make_new_sample_app.py D3D12MeshletInstancing --path Source/Samples
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target D3D12MeshletInstancing
-.\build\windows-vs2022\bin\Debug\D3D12MeshletInstancing.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12MeshletInstancing
 ```
 
 **前置条件**：ToyRobot.bin 需位于可执行文件同目录。可从 DirectX-Graphics-Samples 构建 MeshletGenerator 后，将 `Samples/Desktop/D3D12MeshShaders/Assets/ToyRobot.bin` 复制到 Falcor 运行时目录，或确保 CMake 能发现并复制该文件。

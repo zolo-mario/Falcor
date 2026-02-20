@@ -57,8 +57,8 @@ python tools/make_new_sample_app.py D3D12Bundles --path Source/Samples/Desktop
 
 ```bash
 # 确保 occcity.bin 已复制（见资产依赖）
-cmake --build build/windows-vs2022 --config Debug --target D3D12Bundles
-.\build\windows-vs2022\bin\Debug\D3D12Bundles.exe
+cmake --build build/windows-vs2022 --config Debug --target Karma
+.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/D3D12Bundles
 ```
 
 预期：蓝色背景 + 30 个 city 网格（交替纹理/滤镜着色），可鼠标旋转相机。

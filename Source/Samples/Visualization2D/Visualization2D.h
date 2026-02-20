@@ -1,7 +1,7 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
 #include "Core/Pass/FullScreenPass.h"
+#include "Core/SampleBase.h"
 
 using namespace Falcor;
 
@@ -14,11 +14,15 @@ struct VoxelNormalsGUI
     bool showBoxAroundPoint = false;
 };
 
-class Visualization2D : public SampleApp
+class Visualization2D : public SampleBase
 {
 public:
-    Visualization2D(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(Visualization2D, "Visualization2D", SampleBase::PluginInfo{"Samples/Visualization2D"});
+
+    explicit Visualization2D(SampleApp* pHost);
     ~Visualization2D();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo) override;

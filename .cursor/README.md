@@ -33,7 +33,7 @@
 
 | Agent | 用途 |
 |-------|------|
-| **dx-samples-migrate** | 将 DirectX-Graphics-Samples 迁移至 Falcor SampleApp，1:1 映射 |
+| **dx-samples-migrate** | 将 DirectX-Graphics-Samples 迁移至 Falcor SampleBase 插件，通过 Karma 运行 |
 | **migrate-niagara-renderer** | 将 Niagara mesh-shading 渲染器移植为 Falcor SampleApp |
 | **migrate-niagara-review** | 对照 migrate-niagara-renderer 计划审查实现 |
 | **qa** | 测试用例管理、图像误差测量、参考图像更新 |
@@ -44,7 +44,7 @@
 | Skill | 用途 |
 |-------|------|
 | **build** | 构建 Falcor、指定 target、配置 Debug/Release |
-| **run** | Mogwai、Niagara、单元测试、图像测试、Packman Python |
+| **run** | Karma、Mogwai、Niagara、单元测试、图像测试、Packman Python |
 
 **已归档**（`_archived/`）：falcor-deepwiki-analysis, merge-falcor-docs, slang-user-guide  
 

@@ -1,4 +1,4 @@
-add_falcor_executable(D3D12HelloConstantBuffers)
+add_plugin(D3D12HelloConstantBuffers)
 
 target_sources(D3D12HelloConstantBuffers PRIVATE
     D3D12HelloConstantBuffers.cpp
