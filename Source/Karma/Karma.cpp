@@ -4,6 +4,7 @@
 #include "Utils/Logger.h"
 #include "Utils/UI/TextRenderer.h"
 
+#include <args.hxx>
 #include <imgui.h>
 #include <map>
 #include <sstream>
@@ -12,13 +13,31 @@ FALCOR_EXPORT_D3D12_AGILITY_SDK
 
 namespace Karma
 {
-KarmaApp::KarmaApp(const SampleAppConfig& config) : SampleApp(config) {}
+KarmaApp::KarmaApp(const SampleAppConfig& config, const KarmaAppOptions& options) : SampleApp(config), mInitialSample(options.initialSample) {}
 
 KarmaApp::~KarmaApp() {}
 
 void KarmaApp::onLoad(RenderContext* pRenderContext)
 {
     PluginManager::instance().loadAllPlugins();
+
+    if (!mInitialSample.empty())
+    {
+        std::string path, type;
+        for (const auto& [t, info] : PluginManager::instance().getInfos<SampleBase>())
+        {
+            if (info.path == mInitialSample || t == mInitialSample)
+            {
+                path = info.path;
+                type = t;
+                break;
+            }
+        }
+        if (!type.empty())
+            selectSample(path, type);
+        else
+            logWarning("Karma: sample '{}' not found. Use path (e.g. Samples/Desktop/D3D12ExecuteIndirect) or type name.", mInitialSample);
+    }
 }
 
 void KarmaApp::onShutdown()
@@ -176,11 +195,39 @@ void KarmaApp::renderSampleTree(Gui* pGui)
 
 int runMain(int argc, char** argv)
 {
+    args::ArgumentParser parser("Karma - Sample Browser.");
+    parser.helpParams.programName = "Karma";
+    args::HelpFlag helpFlag(parser, "help", "Display this help menu.", {'h', "help"});
+    args::ValueFlag<std::string> sampleFlag(parser, "name", "Sample to load on startup (path or type, e.g. Samples/Desktop/D3D12ExecuteIndirect).", {'s', "sample"});
+    args::Flag headlessFlag(parser, "", "Start without opening a window.", {"headless"});
+
+    try
+    {
+        parser.ParseCLI(argc, argv);
+    }
+    catch (const args::Help&)
+    {
+        std::cout << parser;
+        return 0;
+    }
+    catch (const args::ParseError& e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+
     SampleAppConfig config;
     config.windowDesc.title = "Karma - Sample Browser";
     config.windowDesc.resizableWindow = true;
+    if (headlessFlag)
+        config.headless = true;
 
-    Karma::KarmaApp app(config);
+    Karma::KarmaAppOptions options;
+    if (sampleFlag)
+        options.initialSample = args::get(sampleFlag);
+
+    Karma::KarmaApp app(config, options);
     return app.run();
 }
 

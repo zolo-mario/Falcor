@@ -7,10 +7,15 @@ using namespace Falcor;
 
 namespace Karma
 {
+struct KarmaAppOptions
+{
+    std::string initialSample; ///< Sample path (e.g. "Samples/Desktop/D3D12ExecuteIndirect") or type name to load on startup.
+};
+
 class KarmaApp : public SampleApp
 {
 public:
-    explicit KarmaApp(const SampleAppConfig& config);
+    explicit KarmaApp(const SampleAppConfig& config, const KarmaAppOptions& options = {});
     ~KarmaApp();
 
     void onLoad(RenderContext* pRenderContext) override;
@@ -29,5 +34,6 @@ private:
 
     std::unique_ptr<SampleBase> mpActiveSample;
     std::string mActiveSamplePath;
+    std::string mInitialSample;
 };
 } // namespace Karma

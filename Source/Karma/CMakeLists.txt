@@ -5,6 +5,6 @@ target_sources(Karma PRIVATE
     Karma.h
 )
 
-target_link_libraries(Karma PRIVATE Falcor)
+target_link_libraries(Karma PRIVATE Falcor args)
 
 target_source_group(Karma "/")

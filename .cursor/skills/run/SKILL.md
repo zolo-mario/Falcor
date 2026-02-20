@@ -20,6 +20,8 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Karm
 | Mogwai 交互模式 | `./build/windows-vs2022/bin/Debug/Mogwai.exe` |
 | Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
 | Karma（Sample 浏览器） | `./build/windows-vs2022/bin/Debug/Karma.exe` |
+| Karma 直接加载 sample | `Karma.exe --sample Samples/Desktop/D3D12ExecuteIndirect` |
+| Karma headless | `Karma.exe --sample <path> --headless` |
 | Packman Python (balls.py 等) | `tools/.packman/python/python.exe`，需设置 `PYTHONPATH` 和 `PATH` |
 
 在项目根目录（如 `F:/Falcor`）运行 `.bat`/`.ps1` 脚本。
@@ -30,6 +32,18 @@ Samples 作为插件（DLL）注册，通过 Karma 树形 UI 选择运行：
 
 ```bash
 ./build/windows-vs2022/bin/Debug/Karma.exe
+```
+
+**启动参数**（`Karma.exe --help`）：
+- `-s, --sample <name>`：启动时直接加载 sample（path 如 `Samples/Desktop/D3D12ExecuteIndirect` 或 type 如 `D3D12ExecuteIndirect`）
+- `--headless`：无窗口模式（用于自动化测试等）
+
+```bash
+# 直接加载 D3D12ExecuteIndirect
+Karma.exe --sample Samples/Desktop/D3D12ExecuteIndirect
+
+# headless 运行指定 sample
+Karma.exe --sample D3D12ExecuteIndirect --headless
 ```
 
 - Samples 位于 `bin/Debug/plugins/`（如 `HelloDXR.dll`）
