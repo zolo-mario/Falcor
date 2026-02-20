@@ -1,59 +1,68 @@
 # MeshletRender 迁移记录
 
+## 与 DirectX-Graphics-Samples 原版对比（Falcor Bunny 版）
+
+本迁移使用 **Falcor bunny 场景**、**SceneMeshletData** 和 **Falcor 相机系统**，替代原版 Dragon.bin 与自定义 SimpleCamera。
+
+| 维度 | DirectX-Graphics-Samples 原版 | Falcor 迁移版（Bunny） |
+|------|-------------------------------|------------------------|
+| **应用框架** | 独立 Win32 exe，继承 `DXSample` | Karma 插件，继承 `SampleBase` |
+| **模型** | Dragon_LOD0.bin（MeshletModel） | test_scenes/bunny.pyscene（Scene + SceneMeshletData） |
+| **Meshlet 数据** | MeshletModel::loadFromFile + uploadGpuResources | Scene::getMeshletData() → SceneMeshletData |
+| **Meshlet 格式** | GpuMeshlet (VertCount, VertOffset, PrimCount, PrimOffset) | GpuMeshletDesc (vertexOffset, triangleOffset, vertexCount, triangleCount, instanceID, ...) |
+| **顶点数据** | StructuredBuffer\<Vertex\> (Position, Normal) | gScene.getVertex() → StaticVertexData |
+| **三角形索引** | PackedTriangle (10+10+10 bit) | gMeshletTriangles (uint32 × 3) |
+| **相机** | 自定义 SimpleCamera (WASD + 方向键) | Scene 内建 Camera + OrbiterCameraController |
+| **着色器** | MeshletRender.slang | MeshletRenderBunny.ms.slang |
+
 ## Scaffold 命令
 
 ```bash
 python tools/make_new_sample_app.py MeshletRender --path Source/Samples/Desktop
 ```
 
-## 5.1 DX Sample → Falcor 映射表
+## DX Sample → Falcor 映射表
 
 | DX 概念 / 代码 | Falcor 对应 | 备注 |
 |----------------|-------------|------|
-| `LoadPipeline()` | （Falcor 抽象） | Device、swap chain、RTV/DSV 由 SampleApp 管理 |
-| `LoadAssets()` → Mesh Shader PSO | `Program::create` + `meshEntry` + `psEntry` | MeshletRender.slang，SM 6.5 |
-| `LoadAssets()` → RootSignature | （Slang 自动生成） | CBV(b0), RootConstants(b1), SRV(t0-t3) |
-| `LoadAssets()` → Model | `MeshletModel::loadFromFile` + `uploadGpuResources` | 移植 Model.h/cpp，.bin 格式 |
-| `LoadAssets()` → Constant buffer | `createBuffer(..., ResourceBindFlags::Constant)` | World, WorldView, WorldViewProj, DrawMeshlets |
-| `OnUpdate()` → 相机 + 矩阵 | `updateCamera` + `updateConstants` | SimpleCamera 逻辑内联 |
-| `PopulateCommandList()` → DispatchMesh | `drawMeshTasks(subset.Count, 1, 1)` | 每 subset 一次，需更新 MeshInfo |
-| `SetGraphicsRootConstantBufferView(0, ...)` | `var["CB"] = mpConstantBuffer` | 主常量缓冲 |
-| `SetGraphicsRoot32BitConstant(1, ...)` | `var["MeshInfoCB"] = mpMeshInfoBuffer` | IndexBytes, MeshletOffset 每 subset 更新 |
-| `SetGraphicsRootShaderResourceView(2-5, ...)` | `var["Vertices"]` 等 | Vertices, Meshlets, UniqueVertexIndices, PrimitiveIndices |
-| `ClearRenderTargetView` + `ClearDepthStencilView` | `pRenderContext->clearFbo` | clearColor (0, 0.2, 0.4, 1) |
+| 独立 SampleApp 可执行文件 | SampleBase 插件 (add_plugin) | 由 Karma 加载，树路径 Samples/Desktop/MeshletRender |
+| `LoadPipeline()` | （Falcor 抽象） | Device、swap chain 由 Karma 管理 |
+| `LoadAssets()` → Model | `SceneBuilder` + `Scene::getMeshletData` | 加载 test_scenes/bunny.pyscene |
+| `LoadAssets()` → Mesh Shader PSO | `Program::create` + Scene 集成 | addShaderModules, getSceneDefines, getTypeConformances |
+| `LoadAssets()` → RootSignature | （Slang 自动生成） | CB, gMeshlets, gMeshletVertices, gMeshletTriangles, gScene |
+| `OnUpdate()` → 相机 | `mpScene->update()` + `setCameraController(Orbiter)` | 转发 onKeyEvent/onMouseEvent 到 Scene |
+| `PopulateCommandList()` → DispatchMesh | `drawMeshTasks(mMeshletCount, 1, 1)` | 单次 dispatch，SceneMeshletData 已展开 |
+| `ClearRenderTargetView` | `pRenderContext->clearFbo` | clearColor (0, 0.2, 0.4, 1) |
 | `OMSetRenderTargets` | `mpGraphicsState->setFbo(mpFbo)` | 带 depth 的 FBO |
-| `D3D12_FEATURE_SHADER_MODEL` 6.5 | `isShaderModelSupported(ShaderModel::SM6_5)` | 启动时检查 |
-| `D3D12_FEATURE_D3D12_OPTIONS7` MeshShaderTier | （Falcor 抽象） | 由 SM 6.5 隐含 |
 
-## 保留的常量
-
-| 常量 | 原始值 | Falcor 中 |
-|------|--------|-----------|
-| clearColor | `{ 0.0f, 0.2f, 0.4f, 1.0f }` | `float4(0.0f, 0.2f, 0.4f, 1.0f)` |
-| 相机初始位置 | `{ 0, 75, 150 }` | `float3(0, 75, 150)` |
-| 移动速度 | 150 | `moveSpeed = 150.f` |
-| FOV | π/3 | `3.14159f / 3.f` |
-| DrawMeshlets | true | `c.DrawMeshlets = 1` |
-| window title | `L"D3D12 MeshletRender"` | `"D3D12 MeshletRender"` |
-
-## 5.2 1:1 映射后运行错误及修复
+## 1:1 映射后运行错误及修复
 
 | 问题 | 错误表现 | 修复 |
 |------|----------|------|
-| createConstantBuffer 不存在 | 编译错误 | 使用 `createBuffer(size, ResourceBindFlags::Constant, MemoryType::Upload)` |
-| Dragon_LOD0.bin 缺失 | 仅蓝色背景，无模型 | 需运行 D3D12 WavefrontConverter 生成；CMake 支持从 DirectX-Graphics-Samples/Assets 或 data/ 复制 |
+| setCameraControllerType 不存在 | C2039 | 使用 `mpScene->setCameraController(Scene::CameraControllerType::Orbiter)` |
+| Dragon_LOD0.bin 依赖 | 原版需外部资产 | 改用 Falcor bunny.pyscene，无需 Dragon |
 
 ## 资产说明
 
-- **Dragon_LOD0.bin**：由 DirectX-Graphics-Samples 的 D3D12WavefrontConverter 从 Dragon.obj 生成。
-- 若 DirectX-Graphics-Samples 与 Falcor 为兄弟目录，CMake 会尝试从 `../DirectX-Graphics-Samples/Samples/Desktop/D3D12MeshShaders/Assets/Dragon_LOD0.bin` 复制。
-- 或可将生成的 bin 放入 `Source/Samples/Desktop/MeshletRender/data/`。
+- **test_scenes/bunny.pyscene**：Falcor 内置场景，含 bunny_dense.obj。路径由 FALCOR_MEDIA_FOLDERS 解析。
+- 无需 DirectX-Graphics-Samples 或 WavefrontConverter。
 
 ## Build/run 验证
 
 ```bash
-cmake --build build/windows-vs2022 --config Debug --target Karma
-.\build\windows-vs2022\bin\Debug\Karma.exe  # 在树中选择 Samples/Desktop/MeshletRender
+tools\.packman\cmake\bin\cmake.exe --build build/windows-vs2022 --config Debug --target Karma
 ```
 
-预期：蓝色背景 + Dragon 模型（meshlet 着色模式），WASD 移动，方向键旋转视角。
+运行：
+```bash
+# 交互模式（树形 UI 选择）
+.\build\windows-vs2022\bin\Debug\Karma.exe
+
+# 直接加载
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletRender
+
+# headless
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletRender --headless
+```
+
+预期：蓝色背景 + bunny 模型（meshlet 着色模式，按 meshlet 索引着色），鼠标旋转/缩放相机。

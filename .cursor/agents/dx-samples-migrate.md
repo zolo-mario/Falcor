@@ -31,7 +31,7 @@ skills: [build, run]
 - ~~**D3D12DynamicIndexing**~~（Bundle 不支持，禁用）
 - [x] **D3D12ExecuteIndirect**
 - ~~**D3D12Fullscreen**~~（放弃移植）
-- [x] **D3D12HDR**
+- [x] **D3D12HDR** //show nothing
 - [ ] **D3D12Multithreading**
 - [ ] **D3D12PredicationQueries**
 - [x] **D3D12PipelineStateCache**
@@ -118,6 +118,18 @@ Falcor 已抽象以下内容：
 - `pRenderContext->clearFbo()` 做 clear
 - `getDevice()` 访问 device
 - `pTargetFbo` 作为 render target
+
+### 可复用 Falcor 资产
+
+当 sample 需要 3D 模型或相机时，**优先复用 Falcor 内置资产**，避免移植外部模型或自定义相机逻辑：
+
+| 需求 | Falcor 对应 | 用法 |
+|------|-------------|------|
+| **场景/模型** | `test_scenes/bunny.pyscene` | `SceneBuilder(getDevice(), "test_scenes/bunny.pyscene", Settings(), ...).getScene()`，含 bunny_dense.obj |
+| **相机** | Scene 内建 Camera + OrbiterCameraController | `mpScene->setCameraController(Scene::CameraControllerType::Orbiter)`，`mpScene->setCameraSpeed(25.f)`，转发 `onKeyEvent`/`onMouseEvent` 到 `mpScene`，`mpScene->update()` 每帧 |
+| **Meshlet 数据** | SceneMeshletData | `mpScene->getMeshletData(pRenderContext)`，配合 `import Scene.Scene` 的 mesh shader |
+
+示例：MeshletRender 迁移时用 bunny + Falcor 相机替代 Dragon.bin + 自定义 SimpleCamera，见 [MeshletRender.md](dx-samples-migrate/records/MeshletRender.md)。
 
 ### Step 4: 验证
 

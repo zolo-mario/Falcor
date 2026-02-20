@@ -4062,7 +4062,15 @@ namespace Falcor
         if (!mpMeshletData)
             mpMeshletData = std::make_unique<SceneMeshletData>(mpDevice, this);
 
-        mpMeshletData->build(pRenderContext);
+        // Only rebuild when scene geometry or transforms have changed
+        const auto meshletRelevantFlags = IScene::UpdateFlags::GeometryChanged | IScene::UpdateFlags::MeshesChanged |
+                                          IScene::UpdateFlags::SceneGraphChanged | IScene::UpdateFlags::DisplacementChanged;
+        const bool needsRebuild =
+            !mpMeshletData->isValid() || is_set(mUpdates, meshletRelevantFlags);
+
+        if (needsRebuild)
+            mpMeshletData->build(pRenderContext);
+
         return mpMeshletData->isValid() ? mpMeshletData.get() : nullptr;
     }
 

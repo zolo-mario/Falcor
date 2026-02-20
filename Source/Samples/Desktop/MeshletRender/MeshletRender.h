@@ -1,15 +1,19 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
-#include "Model.h"
+#include "Core/SampleBase.h"
+#include "Scene/Scene.h"
 
 using namespace Falcor;
 
-class MeshletRender : public SampleApp
+class MeshletRender : public SampleBase
 {
 public:
-    MeshletRender(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(MeshletRender, "MeshletRender", SampleBase::PluginInfo{"Samples/Desktop/MeshletRender"});
+
+    explicit MeshletRender(SampleApp* pHost);
     ~MeshletRender();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;
@@ -21,21 +25,10 @@ public:
     void onHotReload(HotReloadFlags reloaded) override;
 
 private:
-    void updateCamera(float elapsed);
-    void updateConstants();
-
-    // Camera state (match D3D12 MeshletRender: init {0, 75, 150}, move speed 150)
-    float3 m_cameraPosition{0.f, 75.f, 150.f};
-    float m_cameraYaw = 0.f;
-    float m_cameraPitch = 0.f;
-    bool m_keysPressed[8] = {}; // W A S D Left Right Up Down
-
+    ref<Scene> mpScene;
     ref<Program> mpMeshletProgram;
     ref<ProgramVars> mpMeshletVars;
     ref<GraphicsState> mpGraphicsState;
-    ref<Buffer> mpConstantBuffer;
-    ref<Buffer> mpMeshInfoBuffer;
     ref<Fbo> mpFbo;
-
-    MeshletModel m_model;
+    uint32_t mMeshletCount = 0;
 };
