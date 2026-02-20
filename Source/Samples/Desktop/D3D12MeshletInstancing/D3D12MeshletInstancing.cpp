@@ -1,5 +1,6 @@
 #include "D3D12MeshletInstancing.h"
-#include "Core/Platform/OS.h"
+#include "Scene/SceneBuilder.h"
+#include "Scene/SceneMeshletData.h"
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
@@ -14,29 +15,12 @@ namespace
     }
 }
 
-D3D12MeshletInstancing::D3D12MeshletInstancing(const SampleAppConfig& config) : SampleApp(config) {}
+static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshletInstancing/MeshletInstancingBunny.ms.slang";
+static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
+
+D3D12MeshletInstancing::D3D12MeshletInstancing(SampleApp* pHost) : SampleBase(pHost) {}
 
 D3D12MeshletInstancing::~D3D12MeshletInstancing() {}
-
-std::filesystem::path D3D12MeshletInstancing::findToyRobotBin()
-{
-    auto rt = getRuntimeDirectory();
-    std::vector<std::filesystem::path> searchPaths = {
-        rt / "ToyRobot.bin",
-        rt / "data" / "ToyRobot.bin",
-        rt.parent_path() / "DirectX-Graphics-Samples" / "Samples" / "Desktop" / "D3D12MeshShaders" / "Assets" /
-            "ToyRobot.bin",
-        rt.parent_path().parent_path() / "DirectX-Graphics-Samples" / "Samples" / "Desktop" / "D3D12MeshShaders" /
-            "Assets" / "ToyRobot.bin",
-    };
-
-    for (const auto& p : searchPaths)
-    {
-        if (std::filesystem::exists(p))
-            return p;
-    }
-    return rt / "ToyRobot.bin";
-}
 
 void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
 {
@@ -46,66 +30,46 @@ void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
         return;
     }
 
-    auto path = findToyRobotBin();
-    if (!mModel.loadFromFile(getDevice().get(), path))
+    // Load bunny scene (Falcor bunny.pyscene)
+    mpScene = SceneBuilder(getDevice(), "test_scenes/bunny.pyscene", Settings(), SceneBuilder::Flags::Default).getScene();
+    if (!mpScene || mpScene->getGeometryInstanceCount() == 0)
     {
-        logError("Failed to load ToyRobot.bin. Place it in the runtime directory or build DirectX-Graphics-Samples MeshletGenerator.");
+        logError("D3D12MeshletInstancing: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
         return;
     }
 
-    mModel.uploadGpuResources(pRenderContext);
+    // Use Falcor camera system: Orbiter around scene center
+    mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
+    mpScene->setCameraSpeed(25.f);
+    mpScene->setCameraAspectRatio(16.f / 9.f);
 
-    // Camera - match D3D12 sample: Init({0, 5, 35}), SetMoveSpeed(60)
-    mpCamera = Camera::create("Main");
-    mpCamera->setPosition(float3(0.f, 5.f, 35.f));
-    mpCamera->setTarget(float3(0.f, 0.f, 0.f));
-    mpCamera->setUpVector(float3(0.f, 1.f, 0.f));
-    mpCameraController = std::make_unique<OrbiterCameraController>(mpCamera);
-    mpCameraController->setCameraSpeed(60.f);
-    const auto& bs = mModel.getBoundingSphere();
-    mpCameraController->setModelParams(
-        float3(bs.center[0], bs.center[1], bs.center[2]),
-        bs.radius,
-        3.5f);
-
-    uint2 size = getWindow() ? getWindow()->getClientAreaSize() : uint2(1280, 720);
-    mpCamera->setAspectRatio((float)size.x / std::max(size.y, 1u));
-
-    // Constant buffers
-    mpConstantBuffer = getDevice()->createBuffer(
-        sizeof(SceneConstants),
-        ResourceBindFlags::Constant,
-        MemoryType::Upload,
-        nullptr);
-
-    // DrawParams and MeshInfo - small buffers updated per-dispatch
-    struct DrawParamsData
+    // Get meshlet count from scene
+    SceneMeshletData* pMeshletData = mpScene->getMeshletData(pRenderContext);
+    if (!pMeshletData || !pMeshletData->isValid())
     {
-        uint32_t InstanceCount;
-        uint32_t InstanceOffset;
-    };
-    struct MeshInfoData
-    {
-        uint32_t IndexBytes;
-        uint32_t MeshletCount;
-        uint32_t MeshletOffset;
-    };
-    mpDrawParamsBuffer = getDevice()->createBuffer(sizeof(DrawParamsData), ResourceBindFlags::Constant, MemoryType::Upload, nullptr);
-    mpMeshInfoBuffer = getDevice()->createBuffer(sizeof(MeshInfoData), ResourceBindFlags::Constant, MemoryType::Upload, nullptr);
+        logError("D3D12MeshletInstancing: Failed to build meshlet data.");
+        return;
+    }
+    mMeshletCount = pMeshletData->getMeshletCount();
 
-    // Program - mesh + pixel shader
+    // Program - mesh + pixel shader with Scene integration
     ProgramDesc desc;
-    desc.addShaderLibrary("Samples/Desktop/D3D12MeshletInstancing/MeshletInstancing.ms.slang")
-        .meshEntry("meshMain")
-        .psEntry("psMain");
+    desc.addShaderModules(mpScene->getShaderModules());
+    desc.addShaderLibrary(kMeshShaderFile).meshEntry("meshMain").psEntry("psMain");
+    desc.addTypeConformances(mpScene->getTypeConformances());
     desc.setShaderModel(ShaderModel::SM6_5);
-    mpProgram = Program::create(getDevice(), desc);
+
+    DefineList defines;
+    defines.add(mpScene->getSceneDefines());
+
+    mpProgram = Program::create(getDevice(), desc, defines);
     mpVars = ProgramVars::create(getDevice(), mpProgram.get());
 
     mpState = GraphicsState::create(getDevice());
     mpState->setProgram(mpProgram);
-    mpState->setVao(nullptr); // Mesh pipeline has no VAO
-    mpState->setDepthStencilState(DepthStencilState::create(DepthStencilState::Desc().setDepthEnabled(true).setDepthFunc(ComparisonFunc::LessEqual)));
+    mpState->setVao(nullptr);
+    mpState->setDepthStencilState(
+        DepthStencilState::create(DepthStencilState::Desc().setDepthEnabled(true).setDepthFunc(ComparisonFunc::LessEqual)));
 
     regenerateInstances();
 }
@@ -114,32 +78,45 @@ void D3D12MeshletInstancing::regenerateInstances()
 {
     mUpdateInstances = true;
 
-    const float radius = mModel.getBoundingSphere().radius;
+    float radius = 1.0f;
+    if (mpScene && mpScene->getSceneBounds().valid())
+        radius = mpScene->getSceneBounds().radius();
+
     const float padding = 0.0f;
     const float spacing = (1.0f + padding) * radius * 2.0f;
 
     uint32_t width = mInstanceLevel * 2 + 1;
     float extents = spacing * (float)mInstanceLevel;
 
-    mInstanceCount = width * width * width;
+    // Special case: mInstanceLevel=0 -> 2 instances (for debugging instance>1)
+    mInstanceCount = (mInstanceLevel == 0) ? 2u : (width * width * width);
 
     mInstanceData.resize(mInstanceCount);
     for (uint32_t i = 0; i < mInstanceCount; ++i)
     {
-        float ix = (float)(i % width);
-        float iy = (float)((i / width) % width);
-        float iz = (float)(i / (width * width));
-        float3 location = float3(ix, iy, iz) * spacing - float3(extents, extents, extents);
+        float3 location;
+        if (mInstanceLevel == 0)
+        {
+            location = float3((float)i * spacing - spacing * 0.5f, 0.f, 0.f);
+        }
+        else
+        {
+            float ix = (float)(i % width);
+            float iy = (float)((i / width) % width);
+            float iz = (float)(i / (width * width));
+            location = float3(ix, iy, iz) * spacing - float3(extents, extents, extents);
+        }
 
         float4x4 world = math::matrixFromTranslation(location);
         float4x4 worldInvTranspose = math::transpose(math::inverse(world));
 
+        // Store transpose for mul(position, World) row*matrix (match original DX sample)
         mInstanceData[i].World = math::transpose(world);
         mInstanceData[i].WorldInvTranspose = math::transpose(worldInvTranspose);
     }
 
     size_t instanceBufferSize = mInstanceCount * sizeof(InstanceData);
-    instanceBufferSize = (instanceBufferSize + 255) & ~255; // CB alignment
+    instanceBufferSize = (instanceBufferSize + 255) & ~255;
 
     mpInstanceBuffer = getDevice()->createBuffer(
         (uint32_t)instanceBufferSize,
@@ -148,24 +125,26 @@ void D3D12MeshletInstancing::regenerateInstances()
         mInstanceData.data());
 }
 
-void D3D12MeshletInstancing::onShutdown() {}
+void D3D12MeshletInstancing::onShutdown()
+{
+    mpScene.reset();
+}
 
 void D3D12MeshletInstancing::onResize(uint32_t width, uint32_t height)
 {
-    if (mpCamera)
-        mpCamera->setAspectRatio((float)width / std::max(height, 1u));
+    if (mpScene)
+        mpScene->setCameraAspectRatio(width / (float)height);
 }
 
 void D3D12MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
-    if (!mpProgram || !mpVars || mModel.getMeshCount() == 0)
-    {
-        const float4 clearColor(0.0f, 0.2f, 0.4f, 1.0f);
-        pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-        return;
-    }
+    pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
-    mpCameraController->update();
+    if (!mpProgram || !mpVars || !mpScene || mMeshletCount == 0)
+        return;
+
+    // Update scene (camera, animations)
+    mpScene->update(pRenderContext, (float)getFrameRate().getLastFrameTime());
 
     // Update instance buffer if needed
     if (mUpdateInstances)
@@ -176,58 +155,48 @@ void D3D12MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const 
         mUpdateInstances = false;
     }
 
-    // Update constant buffer
-    SceneConstants cbData;
-    cbData.View = math::transpose(mpCamera->getViewMatrix());
-    cbData.ViewProj = math::transpose(mpCamera->getViewProjMatrix());
-    cbData.DrawMeshlets = mDrawMeshlets ? 1u : 0u;
-    mpConstantBuffer->setBlob(&cbData, 0, sizeof(cbData));
-
-    // Match D3D12 Meshlet Instancing clear color (0.0f, 0.2f, 0.4f, 1.0f)
-    const float4 clearColor(0.0f, 0.2f, 0.4f, 1.0f);
-    pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+    SceneMeshletData* pMeshletData = mpScene->getMeshletData(pRenderContext);
+    if (!pMeshletData || !pMeshletData->isValid())
+        return;
 
     mpState->setFbo(pTargetFbo, true);
 
     auto var = mpVars->getRootVar();
-    var["Globals"] = mpConstantBuffer;
+    var["CB"]["gDrawMeshlets"] = mDrawMeshlets ? 1u : 0u;
+    var["CB"]["gDebugInstanceColor"] = mDebugInstanceColor ? 1u : 0u;
+    var["gMeshlets"] = pMeshletData->getMeshletBuffer();
+    var["gMeshletVertices"] = pMeshletData->getMeshletVerticesBuffer();
+    var["gMeshletTriangles"] = pMeshletData->getMeshletTrianglesBuffer();
+    mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
     var["Instances"] = mpInstanceBuffer;
 
-    for (uint32_t meshIdx = 0; meshIdx < mModel.getMeshCount(); ++meshIdx)
+    struct DrawParamsData
     {
-        auto& mesh = mModel.getMesh(meshIdx);
+        uint32_t InstanceCount;
+        uint32_t InstanceOffset;
+    };
+    struct MeshInfoData
+    {
+        uint32_t MeshletCount;
+        uint32_t MeshletOffset;
+    };
 
-        var["Vertices"] = mesh.pVertexBuffer;
-        var["Meshlets"] = mesh.pMeshletBuffer;
-        var["UniqueVertexIndices"] = mesh.pUniqueVertexIndexBuffer;
-        var["PrimitiveIndices"] = mesh.pPrimitiveIndexBuffer;
+    // Batch by meshlet (not instance) to avoid InstanceOffset>0 which may cause deformation
+    uint32_t maxMeshletsPerBatch = std::max(1u, c_maxGroupDispatchCount / mInstanceCount);
+    uint32_t dispatchCount = divRoundUp(mMeshletCount, maxMeshletsPerBatch);
 
-        for (uint32_t i = 0; i < (uint32_t)mesh.MeshletSubsets.size(); ++i)
-        {
-            const auto& subset = mesh.MeshletSubsets[i];
-            uint32_t packCount = mesh.getLastMeshletPackCount(i, 64, 126);
-            float groupsPerInstance = (float)(subset.Count - 1) + 1.0f / (float)std::max(packCount, 1u);
-            uint32_t maxInstancePerBatch = (uint32_t)((float)c_maxGroupDispatchCount / groupsPerInstance);
-            maxInstancePerBatch = std::max(maxInstancePerBatch, 1u);
-            uint32_t dispatchCount = divRoundUp(mInstanceCount, maxInstancePerBatch);
+    for (uint32_t j = 0; j < dispatchCount; ++j)
+    {
+        uint32_t meshletOffset = maxMeshletsPerBatch * j;
+        uint32_t meshletCount = std::min(mMeshletCount - meshletOffset, maxMeshletsPerBatch);
 
-            for (uint32_t j = 0; j < dispatchCount; ++j)
-            {
-                uint32_t instanceOffset = maxInstancePerBatch * j;
-                uint32_t instanceCount = std::min(mInstanceCount - instanceOffset, maxInstancePerBatch);
+        var["DrawParamsCB"]["DrawParams_data"]["InstanceCount"] = mInstanceCount;
+        var["DrawParamsCB"]["DrawParams_data"]["InstanceOffset"] = 0u;
+        var["MeshInfoCB"]["MeshInfo_data"]["MeshletCount"] = meshletCount;
+        var["MeshInfoCB"]["MeshInfo_data"]["MeshletOffset"] = meshletOffset;
 
-                DrawParamsData drawParams = {instanceCount, instanceOffset};
-                MeshInfoData meshInfo = {mesh.IndexSize, subset.Count, subset.Offset};
-                mpDrawParamsBuffer->setBlob(&drawParams, 0, sizeof(drawParams));
-                mpMeshInfoBuffer->setBlob(&meshInfo, 0, sizeof(meshInfo));
-
-                var["DrawParamsCB"] = mpDrawParamsBuffer;
-                var["MeshInfoCB"] = mpMeshInfoBuffer;
-
-                uint32_t groupCount = (uint32_t)std::ceil(groupsPerInstance * (float)instanceCount);
-                pRenderContext->drawMeshTasks(mpState.get(), mpVars.get(), groupCount, 1, 1);
-            }
-        }
+        uint32_t groupCount = meshletCount * mInstanceCount;
+        pRenderContext->drawMeshTasks(mpState.get(), mpVars.get(), groupCount, 1, 1);
     }
 }
 
@@ -235,9 +204,11 @@ void D3D12MeshletInstancing::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "D3D12 Meshlet Instancing", {250, 200});
     renderGlobalUI(pGui);
-    w.text("D3D12 Meshlet Instancing - migrated to Falcor");
+    w.text("D3D12 Meshlet Instancing - Falcor bunny + SceneMeshletData");
     w.text("+/- : Instance level | Space : Toggle meshlet colors");
     w.checkbox("Draw Meshlets (color by meshlet)", mDrawMeshlets);
+    w.checkbox("Debug: Color by instance (instance0=red,1=green)", mDebugInstanceColor);
+    w.text(fmt::format("Instances: {} | Meshlets: {}", mInstanceCount, mMeshletCount));
 }
 
 bool D3D12MeshletInstancing::onKeyEvent(const KeyboardEvent& keyEvent)
@@ -246,7 +217,7 @@ bool D3D12MeshletInstancing::onKeyEvent(const KeyboardEvent& keyEvent)
     {
         switch (keyEvent.key)
         {
-        case Input::Key::Plus:
+        case Input::Key::Equal:   // + key on main keyboard (Shift+=)
         case Input::Key::KeypadAdd:
             ++mInstanceLevel;
             regenerateInstances();
@@ -266,27 +237,22 @@ bool D3D12MeshletInstancing::onKeyEvent(const KeyboardEvent& keyEvent)
             break;
         }
     }
-    return mpCameraController->onKeyEvent(keyEvent);
+    return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 
 bool D3D12MeshletInstancing::onMouseEvent(const MouseEvent& mouseEvent)
 {
-    return mpCameraController->onMouseEvent(mouseEvent);
+    return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
 void D3D12MeshletInstancing::onHotReload(HotReloadFlags reloaded) {}
 
-int runMain(int argc, char** argv)
+SampleBase* D3D12MeshletInstancing::create(SampleApp* pHost)
 {
-    SampleAppConfig config;
-    config.windowDesc.title = "D3D12 Meshlet Instancing";
-    config.windowDesc.resizableWindow = true;
-
-    D3D12MeshletInstancing project(config);
-    return project.run();
+    return new D3D12MeshletInstancing(pHost);
 }
 
-int main(int argc, char** argv)
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
+    registry.registerClass<SampleBase, D3D12MeshletInstancing>();
 }

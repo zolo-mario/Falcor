@@ -1,17 +1,19 @@
 #pragma once
 #include "Falcor.h"
-#include "Core/SampleApp.h"
-#include "Scene/Camera/Camera.h"
-#include "Scene/Camera/CameraController.h"
-#include "MeshletModel.h"
+#include "Core/SampleBase.h"
+#include "Scene/Scene.h"
 
 using namespace Falcor;
 
-class D3D12MeshletInstancing : public SampleApp
+class D3D12MeshletInstancing : public SampleBase
 {
 public:
-    D3D12MeshletInstancing(const SampleAppConfig& config);
+    FALCOR_PLUGIN_CLASS(D3D12MeshletInstancing, "D3D12MeshletInstancing", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshletInstancing"});
+
+    explicit D3D12MeshletInstancing(SampleApp* pHost);
     ~D3D12MeshletInstancing();
+
+    static SampleBase* create(SampleApp* pHost);
 
     void onLoad(RenderContext* pRenderContext) override;
     void onShutdown() override;
@@ -24,28 +26,12 @@ public:
 
 private:
     void regenerateInstances();
-    std::filesystem::path findToyRobotBin();
 
-    MeshletModel mModel;
-
-    ref<Buffer> mpConstantBuffer;
+    ref<Scene> mpScene;
     ref<Buffer> mpInstanceBuffer;
-    ref<Buffer> mpDrawParamsBuffer;
-    ref<Buffer> mpMeshInfoBuffer;
     ref<Program> mpProgram;
     ref<ProgramVars> mpVars;
     ref<GraphicsState> mpState;
-    ref<Fbo> mpFbo;
-
-    ref<Camera> mpCamera;
-    std::unique_ptr<OrbiterCameraController> mpCameraController;
-
-    struct SceneConstants
-    {
-        float4x4 View;
-        float4x4 ViewProj;
-        uint32_t DrawMeshlets;
-    };
 
     struct InstanceData
     {
@@ -56,6 +42,8 @@ private:
     std::vector<InstanceData> mInstanceData;
     uint32_t mInstanceLevel = 0;
     uint32_t mInstanceCount = 1;
+    uint32_t mMeshletCount = 0;
     bool mUpdateInstances = true;
     bool mDrawMeshlets = true;
+    bool mDebugInstanceColor = false;  // debug: color by instance index
 };
