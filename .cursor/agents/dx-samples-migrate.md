@@ -14,16 +14,20 @@ skills: [build]
 
 从上到下为迁移顺序（由简到繁）。无法迁移的 sample 使用 ~~划去~~。
 
+**不支持特性备注：**
+- **Bundle**：Slang/Falcor 不支持 D3D12 Bundle，相关 sample 禁用。
+- **HelloFrameBuffering**：与 HelloTriangle 渲染相同，Falcor 已抽象 frame buffering，移除冗余。
+
 - [x] **D3D12HelloWorld**
   - [x] HelloWindow
   - [x] HelloTriangle
   - [x] HelloTexture
-  - [x] HelloBundles
+  - ~~HelloBundles~~（Bundle 不支持，禁用）
   - [x] HelloConstantBuffers
-  - [x] HelloFrameBuffering
-- [ ] **D3D12Bundles**
+  - ~~HelloFrameBuffering~~（与 HelloTriangle 渲染相同，Falcor 已抽象 frame buffering，移除冗余）
+- ~~**D3D12Bundles**~~（Bundle 不支持，禁用）
 - [ ] **D3D12DepthBoundsTest**
-- [ ] **D3D12DynamicIndexing**
+- ~~**D3D12DynamicIndexing**~~（Bundle 不支持，禁用）
 - [x] **D3D12ExecuteIndirect**
 - [ ] **D3D12Fullscreen**
 - [ ] **D3D12HDR**
@@ -53,6 +57,12 @@ skills: [build]
   - [ ] SingleGpu
   - [ ] LinkedGpus
   - [ ] LinkedGpusAffinity
+
+## Plan 阶段（前置确认）
+
+**若 Slang/Falcor 不支持某 DX12 特性**，必须在 Plan 阶段主动说明，并**等待用户确认**后才开始移植。不得在未确认的情况下直接开始迁移。
+
+示例：若目标 sample 依赖 Bundle、Reserved Resources 等 Slang 暂不支持的特性，先列出依赖与限制，待用户确认后再执行 Step 1。
 
 ## 工作流程
 
@@ -148,10 +158,10 @@ Falcor 已抽象以下内容：
 | D3D12HelloWorld | [dx-samples-migrate/records/D3D12HelloWorld.md](dx-samples-migrate/records/D3D12HelloWorld.md) |
 | D3D12HelloTriangle | [dx-samples-migrate/records/D3D12HelloTriangle.md](dx-samples-migrate/records/D3D12HelloTriangle.md) |
 | D3D12HelloTexture | [dx-samples-migrate/records/D3D12HelloTexture.md](dx-samples-migrate/records/D3D12HelloTexture.md) |
-| D3D12HelloBundles | [dx-samples-migrate/records/D3D12HelloBundles.md](dx-samples-migrate/records/D3D12HelloBundles.md) |
+| ~~D3D12HelloBundles~~（禁用） | [dx-samples-migrate/records/D3D12HelloBundles.md](dx-samples-migrate/records/D3D12HelloBundles.md) |
 | D3D12HelloConstantBuffers | [dx-samples-migrate/records/D3D12HelloConstantBuffers.md](dx-samples-migrate/records/D3D12HelloConstantBuffers.md) |
-| D3D12HelloFrameBuffering | [dx-samples-migrate/records/D3D12HelloFrameBuffering.md](dx-samples-migrate/records/D3D12HelloFrameBuffering.md) |
-| D3D12Bundles | [dx-samples-migrate/records/D3D12Bundles.md](dx-samples-migrate/records/D3D12Bundles.md) |
+| ~~D3D12HelloFrameBuffering~~（禁用） | [dx-samples-migrate/records/D3D12HelloFrameBuffering.md](dx-samples-migrate/records/D3D12HelloFrameBuffering.md) |
+| ~~D3D12Bundles~~（禁用） | [dx-samples-migrate/records/D3D12Bundles.md](dx-samples-migrate/records/D3D12Bundles.md) |
 | D3D12ExecuteIndirect | [dx-samples-migrate/records/D3D12ExecuteIndirect.md](dx-samples-migrate/records/D3D12ExecuteIndirect.md) |
 | D3D12PipelineStateCache | [dx-samples-migrate/records/D3D12PipelineStateCache.md](dx-samples-migrate/records/D3D12PipelineStateCache.md) |
 | D3D12DynamicLOD | [dx-samples-migrate/records/D3D12DynamicLOD.md](dx-samples-migrate/records/D3D12DynamicLOD.md) |

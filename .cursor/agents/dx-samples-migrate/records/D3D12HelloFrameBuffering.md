@@ -1,5 +1,35 @@
 # D3D12HelloFrameBuffering 迁移记录
 
+## FrameBuffering 概念与 Falcor 实现
+
+### D3D12 Frame Buffering 概念
+
+**Frame Buffering**（帧缓冲）是 D3D12 中保证 CPU/GPU 并行、避免资源竞争的核心机制：
+
+1. **多 back buffer**：Swap chain 有多个 back buffer（如 FrameCount=2），GPU 在渲染一帧时，CPU 可准备下一帧。
+2. **每帧 Command Allocator**：`ID3D12CommandAllocator` 只能在其关联的 command list 在 GPU 上执行完毕后才能 `Reset`。因此每帧需要独立的 allocator（`m_commandAllocators[FrameCount]`）。
+3. **Fence 同步**：用 `ID3D12Fence` 跟踪 GPU 完成进度。`MoveToNextFrame()` 在切换 frame index 前，若下一帧的 back buffer 仍被 GPU 使用，则 `WaitForSingleObjectEx` 等待 fence。
+4. **流程**：`PopulateCommandList` → `ExecuteCommandLists` → `Present` → `MoveToNextFrame`（Signal fence、更新 frameIndex、必要时等待）。
+
+### Falcor 的实现方式
+
+Falcor 将上述逻辑**完全抽象**，应用层无需手动管理：
+
+| D3D12 概念 | Falcor 对应 |
+|------------|-------------|
+| 多 back buffer + 每帧 RTV | `Swapchain` 管理 `imageCount` 张 swap chain 图像；`SampleApp` 用 `mpTargetFBO` 作为渲染目标，再 `copyResource` 到 `acquireNextImage()` 得到的 swap chain 图像 |
+| 每帧 Command Allocator | `Device` 使用 `kInFlightFrameCount = 3` 个 `ITransientResourceHeap`，每帧轮换 |
+| Fence 同步 | `Device::mpFrameFence` + `Device::endFrame()`：`submit` 后若已排队帧数 > kInFlightFrameCount 则 `mpFrameFence->wait()`，再 `synchronizeAndReset` transient heap、`signal` fence |
+| MoveToNextFrame / WaitForGpu | `Device::endFrame()` 统一处理；`SampleApp` 主循环在 `onFrameRender` 后调用 `mpSwapchain->present()` 和 `mpDevice->endFrame()` |
+
+**关键代码位置**：
+- `Device::endFrame()`（`Source/Falcor/Core/API/Device.cpp`）：提交、等待超量帧、切换 transient heap、signal fence
+- `SampleApp` 主循环（`Source/Falcor/Core/SampleApp.cpp`）：`onFrameRender` → `acquireNextImage` → `copyResource` → `submit` → `present` → `endFrame`
+
+迁移时只需实现 `onFrameRender` 的渲染逻辑，frame buffering 由 Falcor 自动处理。
+
+---
+
 ## Scaffold 命令
 
 ```bash
