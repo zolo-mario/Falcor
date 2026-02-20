@@ -17,6 +17,7 @@ skills: [build, run]
 **不支持特性备注：**
 - **Bundle**：Slang/Falcor 不支持 D3D12 Bundle，相关 sample 禁用。
 - **HelloFrameBuffering**：与 HelloTriangle 渲染相同，Falcor 已抽象 frame buffering，移除冗余。
+- **D3D12Fullscreen**：Falcor Window 无运行时全屏切换 API，放弃移植。
 
 - [x] **D3D12HelloWorld**
   - [x] HelloWindow
@@ -29,8 +30,8 @@ skills: [build, run]
 - [ ] **D3D12DepthBoundsTest**
 - ~~**D3D12DynamicIndexing**~~（Bundle 不支持，禁用）
 - [x] **D3D12ExecuteIndirect**
-- [ ] **D3D12Fullscreen**
-- [ ] **D3D12HDR**
+- ~~**D3D12Fullscreen**~~（放弃移植）
+- [x] **D3D12HDR**
 - [ ] **D3D12Multithreading**
 - [ ] **D3D12PredicationQueries**
 - [x] **D3D12PipelineStateCache**
@@ -166,6 +167,7 @@ Falcor 已抽象以下内容：
 | ~~D3D12HelloFrameBuffering~~（禁用） | [dx-samples-migrate/records/D3D12HelloFrameBuffering.md](dx-samples-migrate/records/D3D12HelloFrameBuffering.md) |
 | ~~D3D12Bundles~~（禁用） | [dx-samples-migrate/records/D3D12Bundles.md](dx-samples-migrate/records/D3D12Bundles.md) |
 | D3D12ExecuteIndirect | [dx-samples-migrate/records/D3D12ExecuteIndirect.md](dx-samples-migrate/records/D3D12ExecuteIndirect.md) |
+| D3D12HDR | [dx-samples-migrate/records/D3D12HDR.md](dx-samples-migrate/records/D3D12HDR.md) |
 | D3D12PipelineStateCache | [dx-samples-migrate/records/D3D12PipelineStateCache.md](dx-samples-migrate/records/D3D12PipelineStateCache.md) |
 | D3D12DynamicLOD | [dx-samples-migrate/records/D3D12DynamicLOD.md](dx-samples-migrate/records/D3D12DynamicLOD.md) |
 | D3D12MeshletInstancing | [dx-samples-migrate/records/D3D12MeshletInstancing.md](dx-samples-migrate/records/D3D12MeshletInstancing.md) |

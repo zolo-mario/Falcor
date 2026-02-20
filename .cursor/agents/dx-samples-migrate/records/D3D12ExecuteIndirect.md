@@ -1,5 +1,51 @@
 # D3D12ExecuteIndirect 迁移记录
 
+## 与 DirectX-Graphics-Samples 原版对比
+
+| 维度 | DirectX-Graphics-Samples 原版 | Falcor 迁移版 |
+|------|-------------------------------|---------------|
+| **应用框架** | 独立 Win32 exe，继承 `DXSample` | Karma 插件，继承 `SampleBase` |
+| **入口** | `Main.cpp` → `Win32Application::Run` | `registerPlugin` → Karma 加载 |
+| **生命周期** | `OnInit` / `OnUpdate` / `OnRender` / `OnDestroy` | `onLoad` / `onFrameRender` / `onShutdown` |
+| **Command Queue** | 双队列：`D3D12_COMMAND_LIST_TYPE_DIRECT` + `D3D12_COMMAND_LIST_TYPE_COMPUTE` | 单 `RenderContext`（继承 ComputeContext） |
+| **Command Signature** | `ID3D12CommandSignature`：每命令含 CBV + Draw | **无**，Falcor drawIndirect 仅支持 DrawArgs |
+| **Indirect 命令格式** | `IndirectCommand{ cbv, drawArguments }`，per-draw 更新 CBV | **架构调整**：用 `firstInstance` 传递索引 → 因 GFX 未传 firstInstance 改用可见索引方案 |
+| **Culling 路径** | Compute 输出 `AppendStructuredBuffer<IndirectCommand>`，ExecuteIndirect 多命令 | Compute 输出 `AppendStructuredBuffer<uint>` 可见索引 + BuildArgs 生成 (3,count,0,0) + 单次 drawIndirect |
+| **Non-culling 路径** | ExecuteIndirect 1024 条命令，每命令 (3,1,0,n) | `drawInstanced(3, 1024, 0, 0)`（instanceId 直接索引 gSceneCB） |
+| **Vertex 输入** | `float4 position`（CBV 提供 offset） | `float3 position` + `SV_InstanceID` 索引 StructuredBuffer |
+| **投影** | `XMMatrixPerspectiveFovLH`（+Z 朝向相机） | `math::perspective`（RH，-Z 朝向），shader 中 worldPos.z = -worldPos.z |
+| **Constant Buffer** | 单 buffer 1024×3 条，256B 对齐，含 padding | 每帧独立 buffer（1024 条），无 padding |
+| **深度/裁剪** | 默认深度测试、背面剔除 | 禁用深度、禁用背面剔除（避免 Falcor 默认导致全剔除） |
+| **Scissor** | culling 时用 `m_cullingScissorRect` 裁剪 | 无，由 compute culling 剔除 draw 数量 |
+
+### Shader 对比
+
+| 原版 (HLSL) | Falcor (Slang) |
+|-------------|----------------|
+| `shaders.hlsl`：VS 用 `cbuffer SceneConstantBuffer`（单 CBV，per-draw 由 ExecuteIndirect 更新） | `Shaders.slang`：VS 用 `StructuredBuffer<SceneConstantBuffer> gSceneCB[instanceId]` |
+| `compute.hlsl`：输出 `AppendStructuredBuffer<IndirectCommand>`，复制 inputCommands[index] | `Compute.slang`：输出 `AppendStructuredBuffer<uint>` 可见索引 |
+| — | `ShadersCulling.slang`：culling 路径，`gSceneCB[gVisibleIndices[instanceId]]` |
+| — | `BuildArgs.slang`：从 counter 读 count，写入 (3,count,0,0) |
+
+### 数据流对比
+
+**原版**：
+```
+CommandBuffer(1024条 IndirectCommand{cbv, draw}) 
+  → Compute(可见) → AppendStructuredBuffer<IndirectCommand> 
+  → ExecuteIndirect(count=UAV) 每命令执行 SetGraphicsRootConstantBufferView + DrawInstanced(3,1,0,n)
+```
+
+**Falcor**：
+```
+Non-culling: drawInstanced(3, 1024, 0, 0) → gSceneCB[instanceId]
+Culling: Compute → AppendStructuredBuffer<uint> visibleIndices
+       → BuildArgs → (3, count, 0, 0)
+       → drawIndirect(1, mpDrawArgsBuffer) → gSceneCB[gVisibleIndices[instanceId]]
+```
+
+---
+
 ## Scaffold 命令
 
 ```bash
