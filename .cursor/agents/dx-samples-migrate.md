@@ -46,7 +46,7 @@ skills: [build, run]
   - [x] MeshletInstancing
   - [ ] DynamicLOD
 - [ ] **D3D12Raytracing**
-  - [ ] D3D12RaytracingHelloWorld
+  - [x] D3D12RaytracingHelloWorld
   - [ ] D3D12RaytracingSimpleLighting
   - [ ] D3D12RaytracingProceduralGeometry
   - [ ] D3D12RaytracingLibrarySubobjects
@@ -185,6 +185,7 @@ Falcor 已抽象以下内容：
 | D3D12MeshletInstancing | [dx-samples-migrate/records/D3D12MeshletInstancing.md](dx-samples-migrate/records/D3D12MeshletInstancing.md) |
 | MeshletCull | [dx-samples-migrate/records/MeshletCull.md](dx-samples-migrate/records/MeshletCull.md) |
 | MeshletRender | [dx-samples-migrate/records/MeshletRender.md](dx-samples-migrate/records/MeshletRender.md) |
+| D3D12RaytracingHelloWorld | [dx-samples-migrate/records/D3D12RaytracingHelloWorld.md](dx-samples-migrate/records/D3D12RaytracingHelloWorld.md) |
 
 ## 输出
 
