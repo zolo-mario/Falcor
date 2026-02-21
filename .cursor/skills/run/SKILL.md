@@ -21,6 +21,7 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Karm
 | Niagara | `./build/windows-vs2022/bin/Debug/Niagara.exe` |
 | Karma（Sample 浏览器） | `./build/windows-vs2022/bin/Debug/Karma.exe` |
 | Karma 直接加载 sample | `Karma.exe --sample Samples/Desktop/D3D12ExecuteIndirect` |
+| Karma 带 sample 参数 | `Karma.exe --sample D3D12HDR --arg display-curve=sRGB --arg reference-white=80` |
 | Karma headless | `Karma.exe --sample <path> --headless` |
 | Packman Python (balls.py 等) | `tools/.packman/python/python.exe`，需设置 `PYTHONPATH` 和 `PATH` |
 
@@ -36,17 +37,22 @@ Samples 作为插件（DLL）注册，通过 Karma 树形 UI 选择运行：
 
 **启动参数**（`Karma.exe --help`）：
 - `-s, --sample <name>`：启动时直接加载 sample（path 如 `Samples/Desktop/D3D12ExecuteIndirect` 或 type 如 `D3D12ExecuteIndirect`）
+- `-a, --arg <key=value>`：Sample 参数（可重复），通过 `setProperties` 注入，与 ImGui 控件共享同一成员变量
 - `--headless`：无窗口模式（用于自动化测试等）
 
 ```bash
 # 直接加载 D3D12ExecuteIndirect
 Karma.exe --sample Samples/Desktop/D3D12ExecuteIndirect
 
+# 带 D3D12HDR 参数（display-curve、reference-white）
+Karma.exe --sample D3D12HDR --arg display-curve=ST2084 --arg reference-white=120
+
 # headless 运行指定 sample
 Karma.exe --sample D3D12ExecuteIndirect --headless
 ```
 
 - Samples 位于 `bin/Debug/plugins/`（如 `HelloDXR.dll`）
+- Sample 参数：参考 RenderPass 的 `Properties` / `setProperties` / `getProperties`；各 Sample 按需实现。Desktop 中已支持 `--arg` 的：D3D12HDR（`display-curve`, `reference-white`）、D3D12ExecuteIndirect（`enable-culling`）、MeshletCull（`draw-meshlets`）、D3D12MeshletInstancing（`instance-level`, `draw-meshlets`, `debug-instance-color`）
 - 新 Sample 使用 `make_new_sample_app.py` 生成，继承 `SampleBase`，通过 `add_plugin` 构建
 
 ## Mogwai

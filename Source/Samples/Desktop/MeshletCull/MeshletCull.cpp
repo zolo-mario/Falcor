@@ -142,6 +142,19 @@ void MeshletCull::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& p
     pRenderContext->blit(mpFbo->getColorTexture(0)->getSRV(), pTargetFbo->getRenderTargetView(0));
 }
 
+void MeshletCull::setProperties(const Properties& props)
+{
+    if (props.has("draw-meshlets"))
+        mDrawMeshlets = (props.get<double>("draw-meshlets", 1.0) != 0.0);
+}
+
+Properties MeshletCull::getProperties() const
+{
+    Properties p;
+    p["draw-meshlets"] = mDrawMeshlets ? 1.0 : 0.0;
+    return p;
+}
+
 void MeshletCull::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "D3D12 Meshlet Cull", {250, 200});

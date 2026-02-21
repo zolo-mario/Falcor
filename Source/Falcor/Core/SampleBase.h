@@ -2,6 +2,7 @@
 #include "Core/Macros.h"
 #include "Core/Plugin.h"
 #include "Core/SampleApp.h"
+#include "Utils/Properties.h"
 
 namespace Falcor
 {
@@ -35,6 +36,9 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) { return false; }
     virtual void onHotReload(HotReloadFlags reloaded) {}
+
+    virtual void setProperties(const Properties& props) {}
+    virtual Properties getProperties() const { return {}; }
 
     const ref<Device>& getDevice() const { return mpHost->getDevice(); }
     const ref<Fbo>& getTargetFbo() const { return mpHost->getTargetFbo(); }

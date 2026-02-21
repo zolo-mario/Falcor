@@ -2,6 +2,7 @@
 #include "Falcor.h"
 #include "Core/SampleApp.h"
 #include "Core/SampleBase.h"
+#include "Utils/Properties.h"
 
 using namespace Falcor;
 
@@ -10,6 +11,7 @@ namespace Karma
 struct KarmaAppOptions
 {
     std::string initialSample; ///< Sample path (e.g. "Samples/Desktop/D3D12ExecuteIndirect") or type name to load on startup.
+    Properties sampleProps;    ///< Sample parameters from --arg (key=value), passed via setProperties().
 };
 
 class KarmaApp : public SampleApp
@@ -35,5 +37,6 @@ private:
     std::unique_ptr<SampleBase> mpActiveSample;
     std::string mActiveSamplePath;
     std::string mInitialSample;
+    Properties mSampleProps;
 };
 } // namespace Karma

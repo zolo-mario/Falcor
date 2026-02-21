@@ -5,15 +5,19 @@
 #include "Utils/UI/TextRenderer.h"
 
 #include <args.hxx>
+#include <cstdlib>
 #include <imgui.h>
 #include <map>
 #include <sstream>
+#include <string>
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
 namespace Karma
 {
-KarmaApp::KarmaApp(const SampleAppConfig& config, const KarmaAppOptions& options) : SampleApp(config), mInitialSample(options.initialSample) {}
+KarmaApp::KarmaApp(const SampleAppConfig& config, const KarmaAppOptions& options)
+    : SampleApp(config), mInitialSample(options.initialSample), mSampleProps(options.sampleProps)
+{}
 
 KarmaApp::~KarmaApp() {}
 
@@ -127,6 +131,8 @@ void KarmaApp::selectSample(const std::string& path, const std::string& type)
         {
             mpActiveSample.reset(p);
             mpActiveSample->onLoad(getRenderContext());
+            if (!mSampleProps.empty())
+                mpActiveSample->setProperties(mSampleProps);
         }
     }
 }
@@ -199,6 +205,7 @@ int runMain(int argc, char** argv)
     parser.helpParams.programName = "Karma";
     args::HelpFlag helpFlag(parser, "help", "Display this help menu.", {'h', "help"});
     args::ValueFlag<std::string> sampleFlag(parser, "name", "Sample to load on startup (path or type, e.g. Samples/Desktop/D3D12ExecuteIndirect).", {'s', "sample"});
+    args::ValueFlagList<std::string> argFlag(parser, "key=value", "Sample parameter (repeatable).", {'a', "arg"});
     args::Flag headlessFlag(parser, "", "Start without opening a window.", {"headless"});
 
     try
@@ -226,6 +233,28 @@ int runMain(int argc, char** argv)
     Karma::KarmaAppOptions options;
     if (sampleFlag)
         options.initialSample = args::get(sampleFlag);
+    if (argFlag)
+    {
+        for (const auto& kv : args::get(argFlag))
+        {
+            size_t eq = kv.find('=');
+            if (eq != std::string::npos)
+            {
+                std::string key = kv.substr(0, eq);
+                std::string value = kv.substr(eq + 1);
+                // Store as number if value parses as float, else as string (no try-catch)
+                const char* start = value.c_str();
+                char* end = nullptr;
+                double d = std::strtod(start, &end);
+                if (end != start && end && *end == '\0')
+                {
+                    options.sampleProps[key] = d;
+                    continue;
+                }
+                options.sampleProps[key] = value;
+            }
+        }
+    }
 
     Karma::KarmaApp app(config, options);
     return app.run();

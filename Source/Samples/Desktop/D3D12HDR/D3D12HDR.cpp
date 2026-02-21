@@ -2,28 +2,7 @@
 #include "Utils/Math/Vector.h"
 #include "Core/Platform/OS.h"
 
-#include <fstream>
-#include <chrono>
-#include <sstream>
-
 FALCOR_EXPORT_D3D12_AGILITY_SDK
-
-// #region agent log
-static void dbgLog(const char* loc, const char* msg, const std::string& dataJson)
-{
-    try
-    {
-        auto path = getProjectDirectory() / "debug-0aa91a.log";
-        std::ofstream f(path, std::ios::app);
-        if (f)
-        {
-            std::string line = "{\"sessionId\":\"0aa91a\",\"location\":\"" + std::string(loc) + "\",\"message\":\"" + std::string(msg) + "\",\"data\":" + dataJson + ",\"timestamp\":" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()) + "}\n";
-            f << line;
-        }
-    }
-    catch (...) {}
-}
-// #endregion
 
 D3D12HDR::D3D12HDR(SampleApp* pHost) : SampleBase(pHost) {}
 
@@ -122,17 +101,6 @@ void D3D12HDR::onLoad(RenderContext* pRenderContext)
     mpGraphicsState->setDepthStencilState(mpDepthStencilState);
 
     updatePaletteVertices();
-
-    // #region agent log
-    {
-        std::ostringstream d;
-        d << "{\"mWidth\":" << mWidth << ",\"mHeight\":" << mHeight << ",\"winNull\":" << (getWindow() ? "false" : "true")
-          << ",\"fboW\":" << (mpIntermediateFbo ? mpIntermediateFbo->getWidth() : 0)
-          << ",\"fboH\":" << (mpIntermediateFbo ? mpIntermediateFbo->getHeight() : 0)
-          << ",\"texNull\":" << (mpIntermediateFbo && mpIntermediateFbo->getColorTexture(0) ? "false" : "true") << "}";
-        dbgLog("D3D12HDR.cpp:onLoad", "onLoad done", d.str());
-    }
-    // #endregion
 }
 
 void D3D12HDR::updatePaletteVertices()
@@ -187,29 +155,10 @@ void D3D12HDR::onResize(uint32_t width, uint32_t height)
 
     mpIntermediateFbo = Fbo::create2D(getDevice(), mWidth, mHeight, ResourceFormat::RGBA16Float, ResourceFormat::Unknown);
     updatePaletteVertices();
-
-    // #region agent log
-    dbgLog("D3D12HDR.cpp:onResize", "onResize", "{\"width\":" + std::to_string(width) + ",\"height\":" + std::to_string(height) + "}");
-    // #endregion
 }
 
 void D3D12HDR::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
-    // #region agent log
-    static int frameLogCount = 0;
-    if (frameLogCount < 2)
-    {
-        std::ostringstream d;
-        d << "{\"frame\":" << frameLogCount << ",\"targetW\":" << (pTargetFbo ? pTargetFbo->getWidth() : 0)
-          << ",\"targetH\":" << (pTargetFbo ? pTargetFbo->getHeight() : 0)
-          << ",\"interW\":" << (mpIntermediateFbo ? mpIntermediateFbo->getWidth() : 0)
-          << ",\"interH\":" << (mpIntermediateFbo ? mpIntermediateFbo->getHeight() : 0)
-          << ",\"rasterizerSet\":" << (mpGraphicsState->getRasterizerState() ? "true" : "false") << "}";
-        dbgLog("D3D12HDR.cpp:onFrameRender", "frame", d.str());
-        frameLogCount++;
-    }
-    // #endregion
-
     // 1. Draw to intermediate (RGBA16Float)
     const float4 clearColor(0.0f, 0.0f, 0.0f, 0.0f);
     pRenderContext->clearFbo(mpIntermediateFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::Color);
@@ -242,6 +191,30 @@ void D3D12HDR::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTar
     mpPresentVars->getRootVar()["g_scene"] = mpIntermediateFbo->getColorTexture(0);
     mpPresentVars->getRootVar()["g_sampler"] = mpPresentSampler;
     pRenderContext->draw(mpGraphicsState.get(), mpPresentVars.get(), 3, 0);
+}
+
+void D3D12HDR::setProperties(const Properties& props)
+{
+    if (props.has("display-curve"))
+    {
+        auto s = props.get<std::string>("display-curve");
+        if (s == "sRGB")
+            mDisplayCurve = sRGB;
+        else if (s == "ST2084" || s == "ST.2084 (HDR10)")
+            mDisplayCurve = ST2084;
+        else if (s == "Linear")
+            mDisplayCurve = Linear;
+    }
+    if (props.has("reference-white"))
+        mReferenceWhiteNits = props.get<float>("reference-white", 80.f);
+}
+
+Properties D3D12HDR::getProperties() const
+{
+    Properties p;
+    p["display-curve"] = mDisplayCurve == sRGB ? "sRGB" : (mDisplayCurve == ST2084 ? "ST2084" : "Linear");
+    p["reference-white"] = mReferenceWhiteNits;
+    return p;
 }
 
 void D3D12HDR::onGuiRender(Gui* pGui)

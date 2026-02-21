@@ -203,6 +203,19 @@ void D3D12ExecuteIndirect::onFrameRender(RenderContext* pRenderContext, const re
     mFrameIndex++;
 }
 
+void D3D12ExecuteIndirect::setProperties(const Properties& props)
+{
+    if (props.has("enable-culling"))
+        mEnableCulling = (props.get<double>("enable-culling", 1.0) != 0.0);
+}
+
+Properties D3D12ExecuteIndirect::getProperties() const
+{
+    Properties p;
+    p["enable-culling"] = mEnableCulling ? 1.0 : 0.0;
+    return p;
+}
+
 void D3D12ExecuteIndirect::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "D3D12 Execute Indirect", {250, 200});

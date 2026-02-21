@@ -200,6 +200,29 @@ void D3D12MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const 
     }
 }
 
+void D3D12MeshletInstancing::setProperties(const Properties& props)
+{
+    if (props.has("instance-level"))
+    {
+        double v = props.get<double>("instance-level", 0.0);
+        mInstanceLevel = (v > 0) ? (uint32_t)v : 0u;
+        regenerateInstances();
+    }
+    if (props.has("draw-meshlets"))
+        mDrawMeshlets = (props.get<double>("draw-meshlets", 1.0) != 0.0);
+    if (props.has("debug-instance-color"))
+        mDebugInstanceColor = (props.get<double>("debug-instance-color", 0.0) != 0.0);
+}
+
+Properties D3D12MeshletInstancing::getProperties() const
+{
+    Properties p;
+    p["instance-level"] = (double)mInstanceLevel;
+    p["draw-meshlets"] = mDrawMeshlets ? 1.0 : 0.0;
+    p["debug-instance-color"] = mDebugInstanceColor ? 1.0 : 0.0;
+    return p;
+}
+
 void D3D12MeshletInstancing::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "D3D12 Meshlet Instancing", {250, 200});

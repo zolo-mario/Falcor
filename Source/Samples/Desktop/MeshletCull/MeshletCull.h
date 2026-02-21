@@ -34,6 +34,8 @@ public:
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onHotReload(HotReloadFlags reloaded) override;
+    void setProperties(const Properties& props) override;
+    Properties getProperties() const override;
 
 private:
     void updateConstants(RenderContext* pRenderContext);
