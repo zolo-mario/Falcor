@@ -59,10 +59,10 @@ tools\.packman\cmake\bin\cmake.exe --build build/windows-vs2022 --config Debug -
 .\build\windows-vs2022\bin\Debug\Karma.exe
 
 # 直接加载
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletRender
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletRender
 
 # headless
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletRender --headless
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletRender --headless
 ```
 
 预期：蓝色背景 + bunny 模型（meshlet 着色模式，按 meshlet 索引着色），鼠标旋转/缩放相机。

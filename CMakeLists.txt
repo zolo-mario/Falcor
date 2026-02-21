@@ -492,4 +492,4 @@ if(plugin_targets)
 endif()
 
 # Make Mogwai the default startup project in VS.
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Mogwai)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Karma)

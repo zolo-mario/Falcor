@@ -136,7 +136,7 @@ Falcor 已抽象以下内容：
 - Build：`cmake --build build/windows-vs2022 --config Debug --target Karma`（会构建所有 Sample 插件）
 - Run：
   - 交互：`.\build\windows-vs2022\bin\Debug\Karma.exe`，在树形 UI 中选择对应 Sample
-  - 直接加载：`Karma.exe --sample Samples/Desktop/<SampleName>`（如 `--sample Samples/Desktop/D3D12ExecuteIndirect`）
+  - 直接加载：`Karma.exe --sample Samples/Desktop/<SampleName>`（如 `--sample Samples/Desktop/D3D12ExecuteIndirect`；Hello* 为 `Samples/Desktop/D3D12HelloWorld/HelloTriangle`，Meshlet* 为 `Samples/Desktop/D3D12MeshShaders/MeshletCull`）
   - Headless：`Karma.exe --sample <path> --headless`（无窗口，用于自动化）
 - 确认视觉输出与原始 sample 一致（clear color 等）
 

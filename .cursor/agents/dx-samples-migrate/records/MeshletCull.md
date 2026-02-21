@@ -98,10 +98,10 @@ tools\.packman\cmake\bin\cmake.exe --build build/windows-vs2022 --config Debug -
 .\build\windows-vs2022\bin\Debug\Karma.exe
 
 # 直接加载
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletCull
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletCull
 
 # headless
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/MeshletCull --headless
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletCull --headless
 ```
 
 预期：蓝色背景 + bunny 模型（meshlet 着色或 Blinn-Phong），Space 切换 meshlet 模式，鼠标旋转/缩放相机。AS 在 dispatch MS 前做视锥剔除。需要 Shader Model 6.5 和 Mesh Shader 支持。

@@ -1,10 +1,6 @@
-add_plugin(D3D12HelloWorld)
-
-target_sources(D3D12HelloWorld PRIVATE
-    D3D12HelloWorld.cpp
-    D3D12HelloWorld.h
-)
-
-target_copy_shaders(D3D12HelloWorld Samples/D3D12HelloWorld)
-
-target_source_group(D3D12HelloWorld "Samples")
+# Mirror DirectX-Graphics-Samples Samples/Desktop/D3D12HelloWorld structure
+add_subdirectory(HelloWindow)
+add_subdirectory(HelloTriangle)
+add_subdirectory(HelloTexture)
+add_subdirectory(HelloConstantBuffers)
+# add_subdirectory(HelloBundles)  # Bundle 不支持，禁用

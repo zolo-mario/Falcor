@@ -80,10 +80,10 @@ tools\.packman\cmake\bin\cmake.exe --build build/windows-vs2022 --config Debug -
 .\build\windows-vs2022\bin\Debug\Karma.exe
 
 # 直接加载
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshletInstancing
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletInstancing
 
 # headless
-.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshletInstancing --headless
+.\build\windows-vs2022\bin\Debug\Karma.exe --sample Samples/Desktop/D3D12MeshShaders/MeshletInstancing --headless
 ```
 
 预期：蓝色背景 + bunny 多实例（立方体网格）、+/- 调整实例密度、Space 切换 meshlet 着色、鼠标旋转/缩放相机。
