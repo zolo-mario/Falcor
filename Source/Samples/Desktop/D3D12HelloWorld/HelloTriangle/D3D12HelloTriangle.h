@@ -35,5 +35,4 @@ private:
     ref<Program> mpProgram;
     ref<ProgramVars> mpVars;
     ref<GraphicsState> mpState;
-    ref<DepthStencilState> mpDepthStencilState;
 };

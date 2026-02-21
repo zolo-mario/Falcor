@@ -10,7 +10,6 @@ public:
     FALCOR_PLUGIN_CLASS(D3D12HelloWorld, "D3D12HelloWorld", SampleBase::PluginInfo{"Samples/Desktop/D3D12HelloWorld/HelloWindow"});
 
     explicit D3D12HelloWorld(SampleApp* pHost);
-    ~D3D12HelloWorld();
 
     static SampleBase* create(SampleApp* pHost);
 

@@ -30,21 +30,18 @@ private:
         float4 color;
     };
 
-    // Match D3D12 SceneConstantBuffer: float4 offset + float4 padding[15] for 256-byte alignment
     struct SceneConstantBuffer
     {
         float4 offset;
         float4 padding[15];
     };
-    static_assert(sizeof(SceneConstantBuffer) == 256, "Constant Buffer size must be 256-byte aligned");
+    static_assert(sizeof(SceneConstantBuffer) == 256, "Constant buffer 256-byte aligned");
 
     ref<Buffer> mpVertexBuffer;
     ref<Vao> mpVao;
     ref<Program> mpProgram;
     ref<ProgramVars> mpVars;
     ref<GraphicsState> mpState;
-    ref<DepthStencilState> mpDepthStencilState;
-    ref<RasterizerState> mpRasterizerState;
 
-    SceneConstantBuffer mConstantBufferData;
+    SceneConstantBuffer mConstantBufferData = {};
 };

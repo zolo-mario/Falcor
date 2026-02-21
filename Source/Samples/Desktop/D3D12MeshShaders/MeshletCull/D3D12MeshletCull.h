@@ -5,13 +5,23 @@
 
 using namespace Falcor;
 
-class MeshletInstancing : public SampleBase
+struct D3D12MeshletCullCB
+{
+    float4x4 viewProj;
+    float4 planes[6];
+    float3 viewPosition;
+    uint32_t _pad;
+    uint32_t drawMeshlets;
+    uint32_t meshletCount;
+};
+
+class D3D12MeshletCull : public SampleBase
 {
 public:
-    FALCOR_PLUGIN_CLASS(MeshletInstancing, "MeshletInstancing", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletInstancing"});
+    FALCOR_PLUGIN_CLASS(D3D12MeshletCull, "D3D12MeshletCull", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletCull"});
 
-    explicit MeshletInstancing(SampleApp* pHost);
-    ~MeshletInstancing();
+    explicit D3D12MeshletCull(SampleApp* pHost);
+    ~D3D12MeshletCull();
 
     static SampleBase* create(SampleApp* pHost);
 
@@ -27,25 +37,20 @@ public:
     Properties getProperties() const override;
 
 private:
-    void regenerateInstances();
+    void updateConstants(RenderContext* pRenderContext);
+
+    static const uint32_t kASGroupSize = 32;
 
     ref<Scene> mpScene;
-    ref<Buffer> mpInstanceBuffer;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<GraphicsState> mpState;
+    ref<Program> mpMeshletProgram;
+    ref<ProgramVars> mpMeshletVars;
+    ref<GraphicsState> mpMeshletState;
+    ref<DepthStencilState> mpDepthStencilState;
+    ref<RasterizerState> mpRasterizerState;
+    ref<Fbo> mpFbo;
 
-    struct InstanceData
-    {
-        float4x4 World;
-        float4x4 WorldInvTranspose;
-    };
+    ref<Buffer> mpConstantsBuffer;
 
-    std::vector<InstanceData> mInstanceData;
-    uint32_t mInstanceLevel = 0;
-    uint32_t mInstanceCount = 1;
     uint32_t mMeshletCount = 0;
-    bool mUpdateInstances = true;
     bool mDrawMeshlets = true;
-    bool mDebugInstanceColor = false;  // debug: color by instance index
 };

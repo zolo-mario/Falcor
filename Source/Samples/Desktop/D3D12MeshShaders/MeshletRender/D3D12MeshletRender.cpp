@@ -1,38 +1,33 @@
-#include "MeshletRender.h"
+#include "D3D12MeshletRender.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneMeshletData.h"
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
 static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletRender/MeshletRender.ms.slang";
-
-// Match D3D12 MeshletRender clear color (0.0f, 0.2f, 0.4f, 1.0f)
 static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
-MeshletRender::MeshletRender(SampleApp* pHost) : SampleBase(pHost) {}
+D3D12MeshletRender::D3D12MeshletRender(SampleApp* pHost) : SampleBase(pHost) {}
 
-void MeshletRender::onLoad(RenderContext* pRenderContext)
+void D3D12MeshletRender::onLoad(RenderContext* pRenderContext)
 {
     if (!getDevice()->isShaderModelSupported(ShaderModel::SM6_5))
     {
-        logError("MeshletRender requires Shader Model 6.5 for mesh shader support.");
+        logError("D3D12MeshletRender requires Shader Model 6.5 for mesh shader support.");
         return;
     }
 
-    // Load bunny scene (Falcor bunny.pyscene)
     mpScene = SceneBuilder(getDevice(), "test_scenes/bunny.pyscene", Settings(), SceneBuilder::Flags::Default).getScene();
     if (!mpScene || mpScene->getGeometryInstanceCount() == 0)
     {
-        logError("MeshletRender: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
+        logError("D3D12MeshletRender: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
         return;
     }
 
-    // Use Falcor camera system: Orbiter around scene center
     mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
     mpScene->setCameraSpeed(25.f);
     mpScene->setCameraAspectRatio(16.f / 9.f);
 
-    // Build program with Scene integration (shader modules, defines, type conformances)
     ProgramDesc desc;
     desc.addShaderModules(mpScene->getShaderModules());
     desc.addShaderLibrary(kMeshShaderFile).meshEntry("meshMain").psEntry("psMain");
@@ -54,25 +49,24 @@ void MeshletRender::onLoad(RenderContext* pRenderContext)
     mpGraphicsState->setDepthStencilState(DepthStencilState::create(dsDesc));
 }
 
-void MeshletRender::onShutdown()
+void D3D12MeshletRender::onShutdown()
 {
     mpScene.reset();
 }
 
-void MeshletRender::onResize(uint32_t width, uint32_t height)
+void D3D12MeshletRender::onResize(uint32_t width, uint32_t height)
 {
     if (mpScene)
         mpScene->setCameraAspectRatio(width / (float)height);
 }
 
-void MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
+void D3D12MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
     if (!mpScene || !mpMeshletProgram || !mpMeshletVars)
         return;
 
-    // Update scene (camera, animations)
     mpScene->update(pRenderContext, (float)getFrameRate().getLastFrameTime());
 
     SceneMeshletData* pMeshletData = mpScene->getMeshletData(pRenderContext);
@@ -81,7 +75,6 @@ void MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>&
 
     mMeshletCount = pMeshletData->getMeshletCount();
 
-    // Bind resources
     auto var = mpMeshletVars->getRootVar();
     var["CB"]["gMeshletCount"] = mMeshletCount;
     var["CB"]["gDrawMeshlets"] = 1u;
@@ -94,33 +87,32 @@ void MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>&
     pRenderContext->drawMeshTasks(mpGraphicsState.get(), mpMeshletVars.get(), mMeshletCount, 1, 1);
 }
 
-void MeshletRender::onGuiRender(Gui* pGui)
+void D3D12MeshletRender::onGuiRender(Gui* pGui)
 {
-    Gui::Window w(pGui, "MeshletRender", {250, 200});
+    Gui::Window w(pGui, "D3D12 Meshlet Render", {250, 200});
     renderGlobalUI(pGui);
-    w.text("MeshletRender - Falcor bunny + SceneMeshletData");
-    w.text("Mouse: orbit camera");
+    w.text("MS + PS, bunny via SceneMeshletData. Mouse: orbit.");
     w.text(fmt::format("Meshlets: {}", mMeshletCount));
 }
 
-bool MeshletRender::onKeyEvent(const KeyboardEvent& keyEvent)
+bool D3D12MeshletRender::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 
-bool MeshletRender::onMouseEvent(const MouseEvent& mouseEvent)
+bool D3D12MeshletRender::onMouseEvent(const MouseEvent& mouseEvent)
 {
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
-void MeshletRender::onHotReload(HotReloadFlags reloaded) {}
+void D3D12MeshletRender::onHotReload(HotReloadFlags reloaded) {}
 
-SampleBase* MeshletRender::create(SampleApp* pHost)
+SampleBase* D3D12MeshletRender::create(SampleApp* pHost)
 {
-    return new MeshletRender(pHost);
+    return new D3D12MeshletRender(pHost);
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    registry.registerClass<SampleBase, MeshletRender>();
+    registry.registerClass<SampleBase, D3D12MeshletRender>();
 }

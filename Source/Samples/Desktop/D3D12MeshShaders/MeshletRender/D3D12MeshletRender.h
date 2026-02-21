@@ -1,16 +1,16 @@
 #pragma once
 #include "Falcor.h"
 #include "Core/SampleBase.h"
+#include "Scene/Scene.h"
 
 using namespace Falcor;
 
-class D3D12HelloBundles : public SampleBase
+class D3D12MeshletRender : public SampleBase
 {
 public:
-    FALCOR_PLUGIN_CLASS(D3D12HelloBundles, "D3D12HelloBundles", SampleBase::PluginInfo{"Samples/Desktop/D3D12HelloWorld/HelloBundles"});
+    FALCOR_PLUGIN_CLASS(D3D12MeshletRender, "D3D12MeshletRender", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletRender"});
 
-    explicit D3D12HelloBundles(SampleApp* pHost);
-    ~D3D12HelloBundles();
+    explicit D3D12MeshletRender(SampleApp* pHost);
 
     static SampleBase* create(SampleApp* pHost);
 
@@ -24,16 +24,9 @@ public:
     void onHotReload(HotReloadFlags reloaded) override;
 
 private:
-    struct Vertex
-    {
-        float3 position;
-        float4 color;
-    };
-
-    ref<Buffer> mpVertexBuffer;
-    ref<Vao> mpVao;
-    ref<Program> mpProgram;
-    ref<ProgramVars> mpVars;
-    ref<GraphicsState> mpState;
-    ref<DepthStencilState> mpDepthStencilState;
+    ref<Scene> mpScene;
+    ref<Program> mpMeshletProgram;
+    ref<ProgramVars> mpMeshletVars;
+    ref<GraphicsState> mpGraphicsState;
+    uint32_t mMeshletCount = 0;
 };

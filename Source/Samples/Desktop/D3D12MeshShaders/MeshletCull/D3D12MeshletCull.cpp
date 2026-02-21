@@ -1,4 +1,4 @@
-#include "MeshletCull.h"
+#include "D3D12MeshletCull.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneMeshletData.h"
 
@@ -7,21 +7,21 @@ FALCOR_EXPORT_D3D12_AGILITY_SDK
 static const char kMeshletShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletCull/MeshletCull.slang";
 static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
-MeshletCull::MeshletCull(SampleApp* pHost) : SampleBase(pHost) {}
+D3D12MeshletCull::D3D12MeshletCull(SampleApp* pHost) : SampleBase(pHost) {}
 
-MeshletCull::~MeshletCull() {}
+D3D12MeshletCull::~D3D12MeshletCull() {}
 
-void MeshletCull::onLoad(RenderContext* pRenderContext)
+void D3D12MeshletCull::onLoad(RenderContext* pRenderContext)
 {
     if (!getDevice()->isShaderModelSupported(ShaderModel::SM6_5))
     {
-        throw RuntimeError("MeshletCull requires Shader Model 6.5 for mesh shader support.");
+        throw RuntimeError("D3D12MeshletCull requires Shader Model 6.5 for mesh shader support.");
     }
 
     mpScene = SceneBuilder(getDevice(), "test_scenes/bunny.pyscene", Settings(), SceneBuilder::Flags::Default).getScene();
     if (!mpScene || mpScene->getGeometryInstanceCount() == 0)
     {
-        throw RuntimeError("MeshletCull: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
+        throw RuntimeError("D3D12MeshletCull: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
     }
 
     mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
@@ -55,10 +55,10 @@ void MeshletCull::onLoad(RenderContext* pRenderContext)
     mpMeshletState->setRasterizerState(mpRasterizerState);
 
     mpConstantsBuffer = getDevice()->createStructuredBuffer(
-        sizeof(MeshletCullBunnyCB), 1, ResourceBindFlags::ShaderResource, MemoryType::Upload, nullptr, false);
+        sizeof(D3D12MeshletCullCB), 1, ResourceBindFlags::ShaderResource, MemoryType::Upload, nullptr, false);
 }
 
-void MeshletCull::updateConstants(RenderContext* pRenderContext)
+void D3D12MeshletCull::updateConstants(RenderContext* pRenderContext)
 {
     const Camera* pCamera = mpScene->getCamera().get();
     float4x4 viewProj = pCamera->getViewProjMatrix();
@@ -70,7 +70,7 @@ void MeshletCull::updateConstants(RenderContext* pRenderContext)
         return float4(p.x / len, p.y / len, p.z / len, p.w / len);
     };
 
-    MeshletCullBunnyCB cb;
+    D3D12MeshletCullCB cb;
     cb.viewProj = viewProj;
     cb.planes[0] = normalizePlane(vp[3] + vp[0]);
     cb.planes[1] = normalizePlane(vp[3] - vp[0]);
@@ -85,18 +85,18 @@ void MeshletCull::updateConstants(RenderContext* pRenderContext)
     mpConstantsBuffer->setBlob(&cb, 0, sizeof(cb));
 }
 
-void MeshletCull::onShutdown()
+void D3D12MeshletCull::onShutdown()
 {
     mpScene.reset();
 }
 
-void MeshletCull::onResize(uint32_t width, uint32_t height)
+void D3D12MeshletCull::onResize(uint32_t width, uint32_t height)
 {
     if (mpScene)
         mpScene->setCameraAspectRatio((float)width / (float)height);
 }
 
-void MeshletCull::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
+void D3D12MeshletCull::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
@@ -142,40 +142,39 @@ void MeshletCull::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& p
     pRenderContext->blit(mpFbo->getColorTexture(0)->getSRV(), pTargetFbo->getRenderTargetView(0));
 }
 
-void MeshletCull::setProperties(const Properties& props)
+void D3D12MeshletCull::setProperties(const Properties& props)
 {
     if (props.has("draw-meshlets"))
         mDrawMeshlets = (props.get<double>("draw-meshlets", 1.0) != 0.0);
 }
 
-Properties MeshletCull::getProperties() const
+Properties D3D12MeshletCull::getProperties() const
 {
     Properties p;
     p["draw-meshlets"] = mDrawMeshlets ? 1.0 : 0.0;
     return p;
 }
 
-void MeshletCull::onGuiRender(Gui* pGui)
+void D3D12MeshletCull::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "D3D12 Meshlet Cull", {250, 200});
     renderGlobalUI(pGui);
-    w.text("MeshletCull - AS culls meshlests before MS dispatch");
-    w.text("Bunny model via SceneMeshletData");
+    w.text("AS culls meshlests before MS dispatch. Bunny via SceneMeshletData.");
     w.text(fmt::format("Meshlets: {}", mMeshletCount));
     w.checkbox("Draw Meshlets", mDrawMeshlets);
 }
 
-bool MeshletCull::onKeyEvent(const KeyboardEvent& keyEvent)
+bool D3D12MeshletCull::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 
-bool MeshletCull::onMouseEvent(const MouseEvent& mouseEvent)
+bool D3D12MeshletCull::onMouseEvent(const MouseEvent& mouseEvent)
 {
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
-void MeshletCull::onHotReload(HotReloadFlags reloaded)
+void D3D12MeshletCull::onHotReload(HotReloadFlags reloaded)
 {
     if (is_set(reloaded, HotReloadFlags::Program) && mpScene)
     {
@@ -195,12 +194,12 @@ void MeshletCull::onHotReload(HotReloadFlags reloaded)
     }
 }
 
-SampleBase* MeshletCull::create(SampleApp* pHost)
+SampleBase* D3D12MeshletCull::create(SampleApp* pHost)
 {
-    return new MeshletCull(pHost);
+    return new D3D12MeshletCull(pHost);
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    registry.registerClass<SampleBase, MeshletCull>();
+    registry.registerClass<SampleBase, D3D12MeshletCull>();
 }
