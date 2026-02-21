@@ -4,7 +4,7 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-static const char kMeshletShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletCull/MeshletCullBunny.slang";
+static const char kMeshletShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletCull/MeshletCull.slang";
 static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
 MeshletCull::MeshletCull(SampleApp* pHost) : SampleBase(pHost) {}
@@ -167,11 +167,6 @@ void MeshletCull::onGuiRender(Gui* pGui)
 
 bool MeshletCull::onKeyEvent(const KeyboardEvent& keyEvent)
 {
-    if (keyEvent.type == KeyboardEvent::Type::KeyPressed && keyEvent.key == Input::Key::Space)
-    {
-        mDrawMeshlets = !mDrawMeshlets;
-        return true;
-    }
     return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 

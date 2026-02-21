@@ -5,13 +5,13 @@
 
 using namespace Falcor;
 
-class D3D12MeshletInstancing : public SampleBase
+class MeshletInstancing : public SampleBase
 {
 public:
-    FALCOR_PLUGIN_CLASS(D3D12MeshletInstancing, "D3D12MeshletInstancing", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletInstancing"});
+    FALCOR_PLUGIN_CLASS(MeshletInstancing, "MeshletInstancing", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletInstancing"});
 
-    explicit D3D12MeshletInstancing(SampleApp* pHost);
-    ~D3D12MeshletInstancing();
+    explicit MeshletInstancing(SampleApp* pHost);
+    ~MeshletInstancing();
 
     static SampleBase* create(SampleApp* pHost);
 

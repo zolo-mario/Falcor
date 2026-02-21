@@ -1,11 +1,11 @@
-add_plugin(D3D12MeshletInstancing)
+add_plugin(MeshletInstancing)
 
-target_sources(D3D12MeshletInstancing PRIVATE
-    D3D12MeshletInstancing.cpp
-    D3D12MeshletInstancing.h
-    MeshletInstancingBunny.ms.slang
+target_sources(MeshletInstancing PRIVATE
+    MeshletInstancing.cpp
+    MeshletInstancing.h
+    MeshletInstancing.ms.slang
 )
 
-target_copy_shaders(D3D12MeshletInstancing Samples/Desktop/D3D12MeshShaders/MeshletInstancing)
+target_copy_shaders(MeshletInstancing Samples/Desktop/D3D12MeshShaders/MeshletInstancing)
 
-target_source_group(D3D12MeshletInstancing "Samples")
+target_source_group(MeshletInstancing "Samples")

@@ -4,14 +4,12 @@
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
-static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletRender/MeshletRenderBunny.ms.slang";
+static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletRender/MeshletRender.ms.slang";
 
 // Match D3D12 MeshletRender clear color (0.0f, 0.2f, 0.4f, 1.0f)
 static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
 MeshletRender::MeshletRender(SampleApp* pHost) : SampleBase(pHost) {}
-
-MeshletRender::~MeshletRender() {}
 
 void MeshletRender::onLoad(RenderContext* pRenderContext)
 {
@@ -83,20 +81,6 @@ void MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>&
 
     mMeshletCount = pMeshletData->getMeshletCount();
 
-    // Ensure FBO matches target size
-    uint32_t width = pTargetFbo->getWidth();
-    uint32_t height = pTargetFbo->getHeight();
-    if (!mpFbo || mpFbo->getWidth() != width || mpFbo->getHeight() != height)
-    {
-        auto pDevice = getDevice();
-        mpFbo = Fbo::create(pDevice);
-        auto rtFlags = ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource;
-        mpFbo->attachColorTarget(
-            pDevice->createTexture2D(width, height, ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, rtFlags), 0);
-        mpFbo->attachDepthStencilTarget(
-            pDevice->createTexture2D(width, height, ResourceFormat::D32Float, 1, 1, nullptr, ResourceBindFlags::DepthStencil));
-    }
-
     // Bind resources
     auto var = mpMeshletVars->getRootVar();
     var["CB"]["gMeshletCount"] = mMeshletCount;
@@ -106,12 +90,8 @@ void MeshletRender::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>&
     var["gMeshletTriangles"] = pMeshletData->getMeshletTrianglesBuffer();
     mpScene->bindShaderDataForRaytracing(pRenderContext, var["gScene"]);
 
-    mpGraphicsState->setFbo(mpFbo);
-    pRenderContext->clearFbo(mpFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
-
+    mpGraphicsState->setFbo(pTargetFbo, true);
     pRenderContext->drawMeshTasks(mpGraphicsState.get(), mpMeshletVars.get(), mMeshletCount, 1, 1);
-
-    pRenderContext->blit(mpFbo->getColorTexture(0)->getSRV(), pTargetFbo->getRenderTargetView(0));
 }
 
 void MeshletRender::onGuiRender(Gui* pGui)

@@ -1,8 +1,7 @@
 /**
- * MeshletRender - Falcor bunny scene with SceneMeshletData.
- * Mesh shader + Pixel shader pipeline. No amplification shader.
- * Requires Shader Model 6.5.
- * Uses Falcor Scene (bunny), SceneMeshletData, and Scene camera.
+ * MeshletRender - Mesh shader + Pixel shader with SceneMeshletData.
+ * No amplification shader. Requires Shader Model 6.5.
+ * Uses Falcor Scene, SceneMeshletData, and Scene camera.
  */
 
 import Scene.Scene;
@@ -116,7 +115,6 @@ void meshMain(
 float4 psMain(MeshVertexOut input) : SV_TARGET
 {
     float ambientIntensity = 0.1;
-    float3 lightColor = float3(1, 1, 1);
     float3 lightDir = -normalize(float3(1, -1, 1));
 
     float3 diffuseColor;
@@ -142,8 +140,7 @@ float4 psMain(MeshVertexOut input) : SV_TARGET
     float3 viewDir = -normalize(input.positionVS);
     float3 halfAngle = normalize(lightDir + viewDir);
 
-    float blinnTerm = saturate(dot(normal, halfAngle));
-    blinnTerm = cosAngle != 0.0 ? blinnTerm : 0.0;
+    float blinnTerm = cosAngle * saturate(dot(normal, halfAngle));
     blinnTerm = pow(blinnTerm, shininess);
 
     float3 finalColor = (cosAngle + blinnTerm + ambientIntensity) * diffuseColor;

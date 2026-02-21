@@ -52,7 +52,7 @@ Karma.exe --sample D3D12ExecuteIndirect --headless
 ```
 
 - Samples 位于 `bin/Debug/plugins/`（如 `HelloDXR.dll`）
-- Sample 参数：参考 RenderPass 的 `Properties` / `setProperties` / `getProperties`；各 Sample 按需实现。Desktop 中已支持 `--arg` 的：D3D12HDR（`display-curve`, `reference-white`）、D3D12ExecuteIndirect（`enable-culling`）、MeshletCull（`draw-meshlets`）、D3D12MeshletInstancing（`instance-level`, `draw-meshlets`, `debug-instance-color`）
+- Sample 参数：参考 RenderPass 的 `Properties` / `setProperties` / `getProperties`；各 Sample 按需实现。Desktop 中已支持 `--arg` 的：D3D12HDR（`display-curve`, `reference-white`）、D3D12ExecuteIndirect（`enable-culling`）、MeshletCull（`draw-meshlets`）、MeshletInstancing（`instance-level`, `draw-meshlets`, `debug-instance-color`）
 - 新 Sample 使用 `make_new_sample_app.py` 生成，继承 `SampleBase`，通过 `add_plugin` 构建
 
 ## Mogwai

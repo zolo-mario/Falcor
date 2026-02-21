@@ -1,4 +1,4 @@
-#include "D3D12MeshletInstancing.h"
+#include "MeshletInstancing.h"
 #include "Scene/SceneBuilder.h"
 #include "Scene/SceneMeshletData.h"
 
@@ -15,18 +15,18 @@ namespace
     }
 }
 
-static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletInstancing/MeshletInstancingBunny.ms.slang";
+static const char kMeshShaderFile[] = "Samples/Desktop/D3D12MeshShaders/MeshletInstancing/MeshletInstancing.ms.slang";
 static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
-D3D12MeshletInstancing::D3D12MeshletInstancing(SampleApp* pHost) : SampleBase(pHost) {}
+MeshletInstancing::MeshletInstancing(SampleApp* pHost) : SampleBase(pHost) {}
 
-D3D12MeshletInstancing::~D3D12MeshletInstancing() {}
+MeshletInstancing::~MeshletInstancing() {}
 
-void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
+void MeshletInstancing::onLoad(RenderContext* pRenderContext)
 {
     if (!getDevice()->isShaderModelSupported(ShaderModel::SM6_5))
     {
-        logError("D3D12MeshletInstancing requires Shader Model 6.5 for mesh shader support.");
+        logError("MeshletInstancing requires Shader Model 6.5 for mesh shader support.");
         return;
     }
 
@@ -34,7 +34,7 @@ void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
     mpScene = SceneBuilder(getDevice(), "test_scenes/bunny.pyscene", Settings(), SceneBuilder::Flags::Default).getScene();
     if (!mpScene || mpScene->getGeometryInstanceCount() == 0)
     {
-        logError("D3D12MeshletInstancing: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
+        logError("MeshletInstancing: Failed to load test_scenes/bunny.pyscene. Check FALCOR_MEDIA_FOLDERS.");
         return;
     }
 
@@ -47,7 +47,7 @@ void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
     SceneMeshletData* pMeshletData = mpScene->getMeshletData(pRenderContext);
     if (!pMeshletData || !pMeshletData->isValid())
     {
-        logError("D3D12MeshletInstancing: Failed to build meshlet data.");
+        logError("MeshletInstancing: Failed to build meshlet data.");
         return;
     }
     mMeshletCount = pMeshletData->getMeshletCount();
@@ -74,7 +74,7 @@ void D3D12MeshletInstancing::onLoad(RenderContext* pRenderContext)
     regenerateInstances();
 }
 
-void D3D12MeshletInstancing::regenerateInstances()
+void MeshletInstancing::regenerateInstances()
 {
     mUpdateInstances = true;
 
@@ -125,18 +125,18 @@ void D3D12MeshletInstancing::regenerateInstances()
         mInstanceData.data());
 }
 
-void D3D12MeshletInstancing::onShutdown()
+void MeshletInstancing::onShutdown()
 {
     mpScene.reset();
 }
 
-void D3D12MeshletInstancing::onResize(uint32_t width, uint32_t height)
+void MeshletInstancing::onResize(uint32_t width, uint32_t height)
 {
     if (mpScene)
         mpScene->setCameraAspectRatio(width / (float)height);
 }
 
-void D3D12MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
+void MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
@@ -200,7 +200,7 @@ void D3D12MeshletInstancing::onFrameRender(RenderContext* pRenderContext, const 
     }
 }
 
-void D3D12MeshletInstancing::setProperties(const Properties& props)
+void MeshletInstancing::setProperties(const Properties& props)
 {
     if (props.has("instance-level"))
     {
@@ -214,7 +214,7 @@ void D3D12MeshletInstancing::setProperties(const Properties& props)
         mDebugInstanceColor = (props.get<double>("debug-instance-color", 0.0) != 0.0);
 }
 
-Properties D3D12MeshletInstancing::getProperties() const
+Properties MeshletInstancing::getProperties() const
 {
     Properties p;
     p["instance-level"] = (double)mInstanceLevel;
@@ -223,59 +223,36 @@ Properties D3D12MeshletInstancing::getProperties() const
     return p;
 }
 
-void D3D12MeshletInstancing::onGuiRender(Gui* pGui)
+void MeshletInstancing::onGuiRender(Gui* pGui)
 {
-    Gui::Window w(pGui, "D3D12 Meshlet Instancing", {250, 200});
+    Gui::Window w(pGui, "Meshlet Instancing", {250, 200});
     renderGlobalUI(pGui);
-    w.text("D3D12 Meshlet Instancing - Falcor bunny + SceneMeshletData");
-    w.text("+/- : Instance level | Space : Toggle meshlet colors");
+    w.text("Meshlet Instancing - Falcor bunny + SceneMeshletData");
+    if (w.slider("Instance Level", mInstanceLevel, 0u, 10u))
+        regenerateInstances();
     w.checkbox("Draw Meshlets (color by meshlet)", mDrawMeshlets);
     w.checkbox("Debug: Color by instance (instance0=red,1=green)", mDebugInstanceColor);
     w.text(fmt::format("Instances: {} | Meshlets: {}", mInstanceCount, mMeshletCount));
 }
 
-bool D3D12MeshletInstancing::onKeyEvent(const KeyboardEvent& keyEvent)
+bool MeshletInstancing::onKeyEvent(const KeyboardEvent& keyEvent)
 {
-    if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
-    {
-        switch (keyEvent.key)
-        {
-        case Input::Key::Equal:   // + key on main keyboard (Shift+=)
-        case Input::Key::KeypadAdd:
-            ++mInstanceLevel;
-            regenerateInstances();
-            return true;
-        case Input::Key::Minus:
-        case Input::Key::KeypadSubtract:
-            if (mInstanceLevel != 0)
-            {
-                --mInstanceLevel;
-                regenerateInstances();
-            }
-            return true;
-        case Input::Key::Space:
-            mDrawMeshlets = !mDrawMeshlets;
-            return true;
-        default:
-            break;
-        }
-    }
     return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 
-bool D3D12MeshletInstancing::onMouseEvent(const MouseEvent& mouseEvent)
+bool MeshletInstancing::onMouseEvent(const MouseEvent& mouseEvent)
 {
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
-void D3D12MeshletInstancing::onHotReload(HotReloadFlags reloaded) {}
+void MeshletInstancing::onHotReload(HotReloadFlags reloaded) {}
 
-SampleBase* D3D12MeshletInstancing::create(SampleApp* pHost)
+SampleBase* MeshletInstancing::create(SampleApp* pHost)
 {
-    return new D3D12MeshletInstancing(pHost);
+    return new MeshletInstancing(pHost);
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-    registry.registerClass<SampleBase, D3D12MeshletInstancing>();
+    registry.registerClass<SampleBase, MeshletInstancing>();
 }

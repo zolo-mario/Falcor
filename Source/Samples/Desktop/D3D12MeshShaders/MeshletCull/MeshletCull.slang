@@ -1,137 +1,66 @@
 /**
- * D3D12 Meshlet Cull - Amplification + Mesh + Pixel shader pipeline.
- * AS: Per-meshlet frustum and normal-cone culling.
- * MS: Output meshlet vertices/primitives.
+ * MeshletCull - AS + MS + PS pipeline with SceneMeshletData.
+ * AS: Frustum culling per meshlet (using boundCenter, boundRadius from SceneMeshletData).
+ * MS: Output meshlet vertices/primitives from gScene.
  * PS: Blinn-Phong shading, meshlet visualization.
- * Migrated from DirectX-Graphics-Samples D3D12MeshShaders/MeshletCull.
+ * Demonstrates culling meshlests before ever dispatching a mesh shader.
  */
 
+import Scene.Scene;
+
 #define AS_GROUP_SIZE 32
-#define CULL_FLAG 0x1
-#define MESHLET_FLAG 0x2
 
-// Shared structures (match D3D12 Shared.h, MeshletUtils.hlsli)
-struct Instance
+// GPU meshlet structure (must match Falcor GpuMeshletDesc)
+struct GpuMeshlet
 {
-    float4x4 World;
-    float4x4 WorldInvTrans;
-    float Scale;
-    uint Flags;
+    uint vertexOffset;
+    uint triangleOffset;
+    uint vertexCount;
+    uint triangleCount;
+    float3 boundCenter;
+    float boundRadius;
+    uint instanceID;
+    uint primitiveOffset;
+    uint meshID;
+    uint _pad0;
 };
 
-struct Constants
+struct CBData
 {
-    float4x4 View;
-    float4x4 ViewProj;
-    float4 Planes[6];
-    float3 ViewPosition;
-    uint HighlightedIndex;
-    float3 CullViewPosition;
-    uint SelectedIndex;
-    uint DrawMeshlets;
+    float4x4 viewProj;
+    float4 planes[6];
+    float3 viewPosition;
+    uint _pad;
+    uint drawMeshlets;
+    uint meshletCount;
 };
+StructuredBuffer<CBData> gCB : register(t0);
 
-struct MeshInfo
-{
-    uint IndexSize;
-    uint MeshletCount;
-    uint LastMeshletVertCount;
-    uint LastMeshletPrimCount;
-};
-
-struct Meshlet
-{
-    uint VertCount;
-    uint VertOffset;
-    uint PrimCount;
-    uint PrimOffset;
-};
-
-struct CullData
-{
-    float4 BoundingSphere;
-    uint NormalCone;
-    float ApexOffset;
-};
-
-struct Vertex
-{
-    float3 Position;
-    float3 Normal;
-};
-
-struct VertexOut
-{
-    float4 PositionHS : SV_Position;
-    float3 PositionVS : POSITION0;
-    float3 Normal : NORMAL0;
-    uint MeshletIndex : COLOR0;
-};
+StructuredBuffer<GpuMeshlet> gMeshlets : register(t1);
+StructuredBuffer<uint> gMeshletVertices : register(t2);
+StructuredBuffer<uint> gMeshletTriangles : register(t3);
 
 struct Payload
 {
-    uint MeshletIndices[AS_GROUP_SIZE];
+    uint meshletIndices[AS_GROUP_SIZE];
 };
 
-// MeshletUtils
-bool isConeDegenerate(CullData c)
+struct MeshVertexOut
 {
-    return (c.NormalCone >> 24) == 0xff;
-}
+    float4 posH : SV_Position;
+    float3 positionVS : POSITION0;
+    float3 normal : NORMAL0;
+    nointerpolation uint meshletIndex : COLOR0;
+};
 
-float4 unpackCone(uint packed)
+// Frustum culling: sphere (center, radius) vs 6 planes
+bool isVisible(float3 center, float radius)
 {
-    float4 v;
-    v.x = float((packed >> 0) & 0xFF) / 255.0;
-    v.y = float((packed >> 8) & 0xFF) / 255.0;
-    v.z = float((packed >> 16) & 0xFF) / 255.0;
-    v.w = float((packed >> 24) & 0xFF) / 255.0;
-    v.xyz = v.xyz * 2.0 - 1.0;
-    return v;
-}
-
-float3 rotateVector(float3 v0, float3 axis, float angle)
-{
-    float cs = cos(angle);
-    return cs * v0 + sin(angle) * cross(axis, v0) + (1 - cs) * dot(axis, v0) * axis;
-}
-
-// Resource bindings (StructuredBuffer for Falcor buffer binding; gConstants/gMeshInfo/gInstance are single-element)
-StructuredBuffer<Constants> gConstants : register(t0);
-StructuredBuffer<MeshInfo> gMeshInfo : register(t1);
-StructuredBuffer<Instance> gInstance : register(t2);
-StructuredBuffer<Vertex> gVertices : register(t3);
-StructuredBuffer<Meshlet> gMeshlets : register(t4);
-ByteAddressBuffer gUniqueVertexIndices : register(t5);
-StructuredBuffer<uint> gPrimitiveIndices : register(t6);
-StructuredBuffer<CullData> gMeshletCullData : register(t7);
-
-// Amplification Shader
-bool isVisible(CullData c, float4x4 world, float scale, float3 viewPos)
-{
-    if ((gInstance[0].Flags & CULL_FLAG) == 0)
-        return true;
-
-    float4 center = mul(float4(c.BoundingSphere.xyz, 1), world);
-    float radius = c.BoundingSphere.w * scale;
-
     for (int i = 0; i < 6; ++i)
     {
-        if (dot(center, gConstants[0].Planes[i]) < -radius)
+        if (dot(float4(center, 1), gCB[0].planes[i]) < -radius)
             return false;
     }
-
-    if (isConeDegenerate(c))
-        return true;
-
-    float4 normalCone = unpackCone(c.NormalCone);
-    float3 axis = normalize(mul(float4(normalCone.xyz, 0), world)).xyz;
-    float3 apex = center.xyz - axis * c.ApexOffset * scale;
-    float3 view = normalize(viewPos - apex);
-
-    if (dot(view, -axis) > normalCone.w)
-        return false;
-
     return true;
 }
 
@@ -144,19 +73,16 @@ void ampMain(
     in uint gid : SV_GroupID)
 {
     bool visible = false;
-    if (dtid < gMeshInfo[0].MeshletCount)
+    if (dtid < gCB[0].meshletCount)
     {
-        visible = isVisible(
-            gMeshletCullData[dtid],
-            gInstance[0].World,
-            gInstance[0].Scale,
-            gConstants[0].CullViewPosition);
+        GpuMeshlet m = gMeshlets[dtid];
+        visible = isVisible(m.boundCenter, m.boundRadius);
     }
 
     if (visible)
     {
         uint index = WavePrefixCountBits(visible);
-        s_Payload.MeshletIndices[index] = dtid;
+        s_Payload.meshletIndices[index] = dtid;
     }
 
     GroupMemoryBarrierWithGroupSync();
@@ -164,109 +90,91 @@ void ampMain(
     DispatchMesh(visibleCount, 1, 1, s_Payload);
 }
 
-// Mesh Shader helpers
-uint3 unpackPrimitive(uint primitive)
-{
-    return uint3(primitive & 0x3FF, (primitive >> 10) & 0x3FF, (primitive >> 20) & 0x3FF);
-}
-
-uint getVertexIndex(Meshlet m, uint localIndex)
-{
-    uint idx = m.VertOffset + localIndex;
-    if (gMeshInfo[0].IndexSize == 4)
-        return gUniqueVertexIndices.Load(idx * 4);
-    uint wordOffset = idx & 0x1;
-    uint byteOffset = (idx / 2) * 4;
-    uint indexPair = gUniqueVertexIndices.Load(byteOffset);
-    return (indexPair >> (wordOffset * 16)) & 0xffff;
-}
-
-uint3 getPrimitive(Meshlet m, uint index)
-{
-    return unpackPrimitive(gPrimitiveIndices[m.PrimOffset + index]);
-}
-
-VertexOut getVertexAttributes(uint meshletIndex, uint vertexIndex)
-{
-    Vertex v = gVertices[vertexIndex];
-    float4 positionWS = mul(float4(v.Position, 1), gInstance[0].World);
-    VertexOut vout;
-    vout.PositionVS = mul(positionWS, gConstants[0].View).xyz;
-    vout.PositionHS = mul(positionWS, gConstants[0].ViewProj);
-    vout.Normal = mul(float4(v.Normal, 0), gInstance[0].WorldInvTrans).xyz;
-    vout.MeshletIndex = meshletIndex;
-    return vout;
-}
-
-// Mesh Shader
 static const uint MAX_VERTS = 64;
-static const uint MAX_PRIMS = 126;
+static const uint MAX_PRIMS = 124;
 
 [outputtopology("triangle")]
 [numthreads(128, 1, 1)]
 void meshMain(
-    in uint dtid : SV_DispatchThreadID,
-    in uint gtid : SV_GroupThreadID,
-    in uint gid : SV_GroupID,
+    in uint tig : SV_GroupIndex,
+    in uint3 groupID : SV_GroupID,
     in payload Payload payload,
-    OutputVertices<VertexOut, MAX_VERTS> verts,
-    OutputIndices<uint3, MAX_PRIMS> tris)
+    OutputVertices<MeshVertexOut, MAX_VERTS> verts,
+    OutputIndices<uint3, MAX_PRIMS> triangles)
 {
-    uint meshletIndex = payload.MeshletIndices[gid];
-    if (meshletIndex >= gMeshInfo[0].MeshletCount)
-        return;
+    uint meshletID = payload.meshletIndices[groupID.x];
+    GpuMeshlet meshlet = gMeshlets[meshletID];
+    GeometryInstanceID geomInstanceID;
+    geomInstanceID.index = meshlet.instanceID;
 
-    Meshlet m = gMeshlets[meshletIndex];
-    SetMeshOutputCounts(m.VertCount, m.PrimCount);
+    float4x4 worldMat = gScene.getWorldMatrix(geomInstanceID);
+    float4x4 worldViewProj = mul(gCB[0].viewProj, worldMat);
+    GeometryInstanceData instance = gScene.getGeometryInstance(geomInstanceID);
+    uint vbOffset = instance.vbOffset;
 
-    if (gtid < m.VertCount)
+    uint numVertices = meshlet.vertexCount;
+    uint numPrimitives = meshlet.triangleCount;
+
+    SetMeshOutputCounts(numVertices, numPrimitives);
+
+    if (tig < numVertices)
     {
-        uint vertexIndex = getVertexIndex(m, gtid);
-        verts[gtid] = getVertexAttributes(meshletIndex, vertexIndex);
+        uint localVtxIdx = tig;
+        uint globalVtxIdx = vbOffset + gMeshletVertices[meshlet.vertexOffset + localVtxIdx];
+        StaticVertexData vtx = gScene.getVertex(globalVtxIdx);
+
+        float4 worldPos = mul(worldMat, float4(vtx.position, 1.0));
+        float4 clipPos = mul(worldViewProj, float4(vtx.position, 1.0));
+        float4 viewPos = mul(gScene.camera.data.viewMat, worldPos);
+
+        MeshVertexOut outVtx;
+        outVtx.posH = clipPos;
+        outVtx.positionVS = viewPos.xyz;
+        outVtx.normal = mul(float4(vtx.normal, 0), worldMat).xyz;
+        outVtx.meshletIndex = meshletID;
+        verts[tig] = outVtx;
     }
 
-    if (gtid < m.PrimCount)
+    if (tig < numPrimitives)
     {
-        tris[gtid] = getPrimitive(m, gtid);
+        uint triOffset = meshlet.triangleOffset + tig * 3;
+        uint idx0 = gMeshletTriangles[triOffset + 0];
+        uint idx1 = gMeshletTriangles[triOffset + 1];
+        uint idx2 = gMeshletTriangles[triOffset + 2];
+        triangles[tig] = uint3(idx0, idx1, idx2);
     }
 }
 
-// Pixel Shader
 float3 luminosity(float3 color)
 {
     return dot(color, float3(0.2126, 0.7152, 0.0722)).xxx;
 }
 
-float4 psMain(VertexOut pin) : SV_TARGET
+float4 psMain(MeshVertexOut input) : SV_TARGET
 {
     float ambientIntensity = 0.1;
-    float3 lightColor = float3(1, 1, 1);
     float3 lightDir = -normalize(float3(1, -1, 1));
 
-    float3 color = 0.8;
-    float shininess = 16;
-
-    if (gConstants[0].DrawMeshlets && (gInstance[0].Flags & MESHLET_FLAG) != 0)
+    float3 color;
+    float shininess;
+    if (gCB[0].drawMeshlets)
     {
+        uint meshletIndex = input.meshletIndex;
         color = float3(
-            float(pin.MeshletIndex & 1),
-            float(pin.MeshletIndex & 3) / 4,
-            float(pin.MeshletIndex & 7) / 8);
-
-        if (gConstants[0].HighlightedIndex != 0xFFFFFFFF ||
-            gConstants[0].SelectedIndex != 0xFFFFFFFF)
-        {
-            if (pin.MeshletIndex != gConstants[0].SelectedIndex &&
-                pin.MeshletIndex != gConstants[0].HighlightedIndex)
-            {
-                color = lerp(color, luminosity(color) + 0.2, 0.8);
-            }
-        }
+            float(meshletIndex & 1),
+            float(meshletIndex & 3) / 4,
+            float(meshletIndex & 7) / 8);
+        shininess = 16.0;
+    }
+    else
+    {
+        color = 0.8;
+        shininess = 64.0;
     }
 
-    float3 normal = normalize(pin.Normal);
+    float3 normal = normalize(input.normal);
     float cosAngle = saturate(dot(normal, lightDir));
-    float3 viewDir = -normalize(pin.PositionVS);
+    float3 viewDir = -normalize(input.positionVS);
     float3 halfAngle = normalize(lightDir + viewDir);
     float blinnTerm = saturate(dot(normal, halfAngle));
     blinnTerm = cosAngle != 0.0 ? blinnTerm : 0.0;

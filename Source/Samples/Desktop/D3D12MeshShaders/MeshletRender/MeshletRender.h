@@ -11,7 +11,6 @@ public:
     FALCOR_PLUGIN_CLASS(MeshletRender, "MeshletRender", SampleBase::PluginInfo{"Samples/Desktop/D3D12MeshShaders/MeshletRender"});
 
     explicit MeshletRender(SampleApp* pHost);
-    ~MeshletRender();
 
     static SampleBase* create(SampleApp* pHost);
 
@@ -29,6 +28,5 @@ private:
     ref<Program> mpMeshletProgram;
     ref<ProgramVars> mpMeshletVars;
     ref<GraphicsState> mpGraphicsState;
-    ref<Fbo> mpFbo;
     uint32_t mMeshletCount = 0;
 };

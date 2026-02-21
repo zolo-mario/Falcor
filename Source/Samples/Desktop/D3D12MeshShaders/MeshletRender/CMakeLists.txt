@@ -3,7 +3,7 @@ add_plugin(MeshletRender)
 target_sources(MeshletRender PRIVATE
     MeshletRender.cpp
     MeshletRender.h
-    MeshletRenderBunny.ms.slang
+    MeshletRender.ms.slang
 )
 
 target_copy_shaders(MeshletRender Samples/Desktop/D3D12MeshShaders/MeshletRender)
