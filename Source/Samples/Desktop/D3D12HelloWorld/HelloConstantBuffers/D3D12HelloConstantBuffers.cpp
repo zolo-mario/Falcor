@@ -43,10 +43,6 @@ void D3D12HelloConstantBuffers::onLoad(RenderContext* pRenderContext)
     mpState->setRasterizerState(RasterizerState::create(RasterizerState::Desc().setCullMode(RasterizerState::CullMode::None)));
 }
 
-void D3D12HelloConstantBuffers::onShutdown() {}
-
-void D3D12HelloConstantBuffers::onResize(uint32_t width, uint32_t height) {}
-
 void D3D12HelloConstantBuffers::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     mConstantBufferData.offset.x += kTranslationSpeed;
@@ -65,12 +61,6 @@ void D3D12HelloConstantBuffers::onGuiRender(Gui* pGui)
     renderGlobalUI(pGui);
     w.text("Triangle with animated constant buffer offset.");
 }
-
-bool D3D12HelloConstantBuffers::onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
-
-bool D3D12HelloConstantBuffers::onMouseEvent(const MouseEvent& mouseEvent) { return false; }
-
-void D3D12HelloConstantBuffers::onHotReload(HotReloadFlags reloaded) {}
 
 SampleBase* D3D12HelloConstantBuffers::create(SampleApp* pHost)
 {

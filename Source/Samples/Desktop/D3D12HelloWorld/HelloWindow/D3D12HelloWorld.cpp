@@ -6,12 +6,6 @@ static const float4 kClearColor(0.0f, 0.2f, 0.4f, 1.0f);
 
 D3D12HelloWorld::D3D12HelloWorld(SampleApp* pHost) : SampleBase(pHost) {}
 
-void D3D12HelloWorld::onLoad(RenderContext* pRenderContext) {}
-
-void D3D12HelloWorld::onShutdown() {}
-
-void D3D12HelloWorld::onResize(uint32_t width, uint32_t height) {}
-
 void D3D12HelloWorld::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
@@ -23,12 +17,6 @@ void D3D12HelloWorld::onGuiRender(Gui* pGui)
     renderGlobalUI(pGui);
     w.text("Clear and present only.");
 }
-
-bool D3D12HelloWorld::onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
-
-bool D3D12HelloWorld::onMouseEvent(const MouseEvent& mouseEvent) { return false; }
-
-void D3D12HelloWorld::onHotReload(HotReloadFlags reloaded) {}
 
 SampleBase* D3D12HelloWorld::create(SampleApp* pHost)
 {

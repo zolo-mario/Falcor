@@ -71,10 +71,6 @@ void D3D12HelloTexture::onLoad(RenderContext* pRenderContext)
     mpState->setRasterizerState(RasterizerState::create(RasterizerState::Desc().setCullMode(RasterizerState::CullMode::None)));
 }
 
-void D3D12HelloTexture::onShutdown() {}
-
-void D3D12HelloTexture::onResize(uint32_t width, uint32_t height) {}
-
 void D3D12HelloTexture::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
@@ -88,12 +84,6 @@ void D3D12HelloTexture::onGuiRender(Gui* pGui)
     renderGlobalUI(pGui);
     w.text("Triangle with checkerboard texture.");
 }
-
-bool D3D12HelloTexture::onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
-
-bool D3D12HelloTexture::onMouseEvent(const MouseEvent& mouseEvent) { return false; }
-
-void D3D12HelloTexture::onHotReload(HotReloadFlags reloaded) {}
 
 SampleBase* D3D12HelloTexture::create(SampleApp* pHost)
 {

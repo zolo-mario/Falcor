@@ -30,9 +30,8 @@ public:
     void onHotReload(HotReloadFlags reloaded) override;
 
 private:
-    void renderSampleTree(Gui* pGui);
+    void renderSampleList(Gui* pGui);
     void selectSample(const std::string& path, const std::string& type);
-    std::vector<std::string> splitPath(const std::string& path);
 
     std::unique_ptr<SampleBase> mpActiveSample;
     std::string mActiveSamplePath;

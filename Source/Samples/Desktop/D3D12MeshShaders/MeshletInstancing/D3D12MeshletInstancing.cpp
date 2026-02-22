@@ -225,8 +225,6 @@ bool D3D12MeshletInstancing::onMouseEvent(const MouseEvent& mouseEvent)
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
-void D3D12MeshletInstancing::onHotReload(HotReloadFlags reloaded) {}
-
 SampleBase* D3D12MeshletInstancing::create(SampleApp* pHost)
 {
     return new D3D12MeshletInstancing(pHost);

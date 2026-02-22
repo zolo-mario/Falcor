@@ -105,8 +105,6 @@ bool D3D12MeshletRender::onMouseEvent(const MouseEvent& mouseEvent)
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
-void D3D12MeshletRender::onHotReload(HotReloadFlags reloaded) {}
-
 SampleBase* D3D12MeshletRender::create(SampleApp* pHost)
 {
     return new D3D12MeshletRender(pHost);

@@ -239,10 +239,7 @@ bool D3D12ExecuteIndirect::onMouseEvent(const MouseEvent& mouseEvent)
     return false;
 }
 
-void D3D12ExecuteIndirect::onHotReload(HotReloadFlags reloaded)
-{
-    //
-}
+void D3D12ExecuteIndirect::onHotReload(HotReloadFlags reloaded) {}
 
 SampleBase* D3D12ExecuteIndirect::create(SampleApp* pHost)
 {

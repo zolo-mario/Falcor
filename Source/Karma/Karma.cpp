@@ -7,8 +7,6 @@
 #include <args.hxx>
 #include <cstdlib>
 #include <imgui.h>
-#include <map>
-#include <sstream>
 #include <string>
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
@@ -65,14 +63,14 @@ void KarmaApp::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTar
     {
         const float4 clearColor(0.2f, 0.2f, 0.2f, 1.f);
         pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-        getTextRenderer().render(pRenderContext, "Select a sample from the tree", pTargetFbo, {20, 20});
+        getTextRenderer().render(pRenderContext, "Select a sample from the list", pTargetFbo, {20, 20});
     }
 }
 
 void KarmaApp::onGuiRender(Gui* pGui)
 {
     Gui::Window w(pGui, "Samples", {280, 400}, {10, 80});
-    renderSampleTree(pGui);
+    renderSampleList(pGui);
     w.release();
 
     if (mpActiveSample)
@@ -101,19 +99,6 @@ void KarmaApp::onHotReload(HotReloadFlags reloaded)
         mpActiveSample->onHotReload(reloaded);
 }
 
-std::vector<std::string> KarmaApp::splitPath(const std::string& path)
-{
-    std::vector<std::string> parts;
-    std::istringstream ss(path);
-    std::string part;
-    while (std::getline(ss, part, '/'))
-    {
-        if (!part.empty())
-            parts.push_back(part);
-    }
-    return parts;
-}
-
 void KarmaApp::selectSample(const std::string& path, const std::string& type)
 {
     if (mActiveSamplePath == path)
@@ -137,64 +122,14 @@ void KarmaApp::selectSample(const std::string& path, const std::string& type)
     }
 }
 
-void KarmaApp::renderSampleTree(Gui* pGui)
+void KarmaApp::renderSampleList(Gui* pGui)
 {
-    struct TreeNode
-    {
-        std::map<std::string, TreeNode> children;
-        std::string path;
-        std::string type;
-    };
-
-    TreeNode root;
     for (const auto& [type, info] : PluginManager::instance().getInfos<SampleBase>())
     {
-        const std::string& path = info.path;
-        auto parts = splitPath(path);
-        TreeNode* node = &root;
-        for (size_t i = 0; i < parts.size(); ++i)
-        {
-            if (node->children.find(parts[i]) == node->children.end())
-            {
-                node->children[parts[i]] = TreeNode{};
-                node->children[parts[i]].path = (node->path.empty() ? "" : node->path + "/") + parts[i];
-            }
-            node = &node->children[parts[i]];
-            if (i == parts.size() - 1)
-            {
-                node->type = type;
-            }
-        }
+        bool selected = (mActiveSamplePath == info.path);
+        if (ImGui::Selectable(info.path.c_str(), selected))
+            selectSample(info.path, type);
     }
-
-    std::function<void(const TreeNode&, const std::string&)> renderNode = [&](const TreeNode& node, const std::string& name)
-    {
-        if (node.children.empty())
-        {
-            bool selected = (mActiveSamplePath == node.path);
-            if (ImGui::Selectable(name.c_str(), selected))
-                selectSample(node.path, node.type);
-        }
-        else
-        {
-            bool open = ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
-            if (open)
-            {
-                if (!node.type.empty())
-                {
-                    bool selected = (mActiveSamplePath == node.path);
-                    if (ImGui::Selectable(("▶ " + name).c_str(), selected))
-                        selectSample(node.path, node.type);
-                }
-                for (const auto& [childName, childNode] : node.children)
-                    renderNode(childNode, childName);
-                ImGui::TreePop();
-            }
-        }
-    };
-
-    for (const auto& [name, node] : root.children)
-        renderNode(node, name);
 }
 
 } // namespace Karma

@@ -39,10 +39,6 @@ void D3D12HelloTriangle::onLoad(RenderContext* pRenderContext)
     mpState->setRasterizerState(RasterizerState::create(RasterizerState::Desc().setCullMode(RasterizerState::CullMode::None)));
 }
 
-void D3D12HelloTriangle::onShutdown() {}
-
-void D3D12HelloTriangle::onResize(uint32_t width, uint32_t height) {}
-
 void D3D12HelloTriangle::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
@@ -56,12 +52,6 @@ void D3D12HelloTriangle::onGuiRender(Gui* pGui)
     renderGlobalUI(pGui);
     w.text("Single triangle, vertex colors.");
 }
-
-bool D3D12HelloTriangle::onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
-
-bool D3D12HelloTriangle::onMouseEvent(const MouseEvent& mouseEvent) { return false; }
-
-void D3D12HelloTriangle::onHotReload(HotReloadFlags reloaded) {}
 
 SampleBase* D3D12HelloTriangle::create(SampleApp* pHost)
 {

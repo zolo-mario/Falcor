@@ -12,13 +12,16 @@ class Gui;
 /**
  * Plugin base class for Karma sample browser.
  * Samples are loaded as plugins (DLLs) and registered via registerPlugin.
+ *
+ * Core lifecycle (minimum to implement): onLoad, onFrameRender, onResize.
+ * Optional hooks: onShutdown, onGuiRender, onKeyEvent, onMouseEvent, onHotReload, setProperties, getProperties.
  */
 class FALCOR_API SampleBase
 {
 public:
     struct PluginInfo
     {
-        std::string path; ///< Hierarchical path for tree (e.g. "Samples/HelloDXR", "Samples/Desktop/D3D12HelloWorld")
+        std::string path; ///< Display path (e.g. "Samples/HelloDXR", "Samples/Desktop/D3D12HelloWorld")
     };
 
     using PluginCreate = SampleBase* (*)(SampleApp* pHost);
@@ -28,10 +31,13 @@ public:
     explicit SampleBase(SampleApp* pHost);
     virtual ~SampleBase();
 
+    /// Core lifecycle
     virtual void onLoad(RenderContext* pRenderContext) {}
-    virtual void onShutdown() {}
-    virtual void onResize(uint32_t width, uint32_t height) {}
     virtual void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo) {}
+    virtual void onResize(uint32_t width, uint32_t height) {}
+
+    /// Optional hooks (default no-op)
+    virtual void onShutdown() {}
     virtual void onGuiRender(Gui* pGui) {}
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) { return false; }
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) { return false; }
