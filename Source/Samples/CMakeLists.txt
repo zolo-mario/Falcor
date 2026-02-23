@@ -3,6 +3,7 @@ add_subdirectory(HelloDXR)
 add_subdirectory(MultiSampling)
 add_subdirectory(ShaderToy)
 add_subdirectory(Visualization2D)
+add_subdirectory(Niagara)
 # Mirror DirectX-Graphics-Samples Samples/Desktop structure
 # add_subdirectory(Desktop/D3D12DynamicLOD)
 add_subdirectory(Desktop/D3D12HelloWorld)
