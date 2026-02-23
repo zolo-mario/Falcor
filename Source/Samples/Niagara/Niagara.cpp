@@ -2,8 +2,18 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneBuilder.h"
 #include "Utils/Math/Matrix.h"
+#include "Utils/Math/VectorMath.h"
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
+
+namespace
+{
+float4 normalizePlane(const float4& p)
+{
+    float len = math::length(float3(p.x, p.y, p.z));
+    return len > 1e-8f ? p / len : p;
+}
+} // namespace
 
 static const char kMeshShaderFile[] = "Samples/Niagara/shaders/NiagaraMeshlet.slang";
 
@@ -205,6 +215,7 @@ void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     float aspect = (float)pTargetFbo->getWidth() / (float)pTargetFbo->getHeight();
     float fovY;
     float znear;
+    float zfar;
     float4x4 view;
     float4x4 projection;
     if (mpScene && !mpScene->getCameras().empty())
@@ -212,25 +223,43 @@ void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTarg
         const auto& pCam = mpScene->getCamera();
         view = pCam->getViewMatrix();
         projection = pCam->getData().projMatNoJitter;
+        znear = pCam->getNearPlane();
+        zfar = pCam->getFarPlane();
     }
     else
     {
         fovY = mResult.camera.fovY;
         znear = mResult.camera.znear;
+        zfar = 1e6f;
         view = mResult.camera.viewMatrix;
-        projection = math::perspective(fovY, aspect, znear, 1e6f);
+        projection = math::perspective(fovY, aspect, znear, zfar);
     }
+
+    // frustum planes: row3 + row0 = left plane, row3 + row1 = top plane (GLM convention)
+    float4 frustumX = normalizePlane(projection.getRow(3) + projection.getRow(0));
+    float4 frustumY = normalizePlane(projection.getRow(3) + projection.getRow(1));
 
     struct NiagaraGlobals
     {
         float4x4 projection;
         float4x4 view;
         uint32_t meshletCount;
+        float znear;
+        float zfar;
+        float frustum[4];
+        uint32_t clusterBackfaceEnabled;
     };
     NiagaraGlobals globals = {};
     globals.projection = projection;
     globals.view = view;
     globals.meshletCount = mTotalMeshletCount;
+    globals.znear = znear;
+    globals.zfar = zfar;
+    globals.frustum[0] = frustumX.x;
+    globals.frustum[1] = frustumX.z;
+    globals.frustum[2] = frustumY.y;
+    globals.frustum[3] = frustumY.z;
+    globals.clusterBackfaceEnabled = 1;
 
     auto var = mpMeshletVars->getRootVar();
     var["CB"]["gGlobals"].setBlob(&globals, sizeof(globals));
@@ -256,7 +285,7 @@ void Niagara::onGuiRender(Gui* pGui)
     renderGlobalUI(pGui);
     if (w.dropdown("Scene", kSceneDropdownList, mSceneIndex))
         loadSelectedScene();
-    w.text("AS 1:1 DispatchMesh, PS output wpos");
+    w.text("AS frustum+cone cull, PS output wpos");
     if (mConvertOk)
         w.text(fmt::format("{} meshes, {} draws, {} meshlets", mResult.geometry.meshes.size(), mResult.draws.size(), mTotalMeshletCount));
     else

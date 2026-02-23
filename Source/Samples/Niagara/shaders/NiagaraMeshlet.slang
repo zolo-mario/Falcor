@@ -1,6 +1,6 @@
 /**
- * Niagara mesh shader - AS 1:1 DispatchMesh, no culling.
- * AS: Pass-through, each group produces up to 32 mesh groups.
+ * Niagara mesh shader - AS frustum + cone culling.
+ * AS: Per-meshlet frustum and backface cone culling, payload only visible meshlets.
  * MS: Read meshlet from NiagaraFormat, output vertices.
  * PS: Output vertex world position (wpos).
  */
@@ -57,6 +57,10 @@ struct NiagaraGlobals
     float4x4 projection;
     float4x4 view;
     uint meshletCount;
+    float znear;
+    float zfar;
+    float frustum[4];
+    uint clusterBackfaceEnabled;
 };
 
 cbuffer CB : register(b0)
@@ -77,10 +81,16 @@ struct Payload
 };
 
 groupshared Payload s_Payload;
+groupshared uint s_VisibleCount;
 
 float3 rotateQuat(float3 v, float4 q)
 {
     return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}
+
+bool coneCull(float3 center, float radius, float3 cone_axis, float cone_cutoff, float3 camera_pos)
+{
+    return dot(center - camera_pos, cone_axis) >= cone_cutoff * length(center - camera_pos) + radius;
 }
 
 float3 decodeHalf3(uint16_t vx, uint16_t vy, uint16_t vz)
@@ -96,14 +106,53 @@ void ampMain(
 {
     uint base = gid * AS_GROUP_SIZE;
     uint count = min(AS_GROUP_SIZE, gGlobals.meshletCount - base);
+    uint linearIdx = base + gtid;
 
+    bool visible = false;
     if (gtid < count)
     {
-        s_Payload.meshletIndices[gtid] = base + gtid;
+        uint ci = gClusterIndices[linearIdx];
+        uint commandId = ci & 0xFFFFFF;
+        uint drawId = commandId / TASK_STRIDE;
+        uint mgi = ci >> 24;
+
+        NiagaraMeshTaskCommand command = gTaskCommands[drawId];
+        NiagaraMeshDraw meshDraw = gDraws[command.drawId];
+        NiagaraMeshlet meshlet = gMeshlets[command.taskOffset + mgi];
+
+        float3 center = decodeHalf3(meshlet.center[0], meshlet.center[1], meshlet.center[2]);
+        center = rotateQuat(center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
+        center = mul(gGlobals.view, float4(center, 1)).xyz;
+
+        float radius = f16tof32((uint)meshlet.radius) * meshDraw.scale;
+
+        float3 cone_axis = float3((float)meshlet.cone_axis[0], (float)meshlet.cone_axis[1], (float)meshlet.cone_axis[2]) / 127.0;
+        cone_axis = mul((float3x3)gGlobals.view, rotateQuat(cone_axis, meshDraw.orientation));
+        float cone_cutoff = (float)meshlet.cone_cutoff / 127.0;
+
+        visible = true;
+        visible = visible && (center.z * gGlobals.frustum[1] - abs(center.x) * gGlobals.frustum[0] > -radius);
+        visible = visible && (center.z * gGlobals.frustum[3] - abs(center.y) * gGlobals.frustum[2] > -radius);
+        // Falcor view space: camera looks down -Z, visible z in [-zfar, -znear]
+        visible = visible && (center.z + radius < -gGlobals.znear);  // back behind near plane
+        visible = visible && (center.z - radius > -gGlobals.zfar);  // front in front of far plane
+        visible = visible && (gGlobals.clusterBackfaceEnabled == 0 || !coneCull(center, radius, cone_axis, cone_cutoff, float3(0, 0, 0)));
+    }
+
+    if (gtid == 0)
+        s_VisibleCount = 0;
+    GroupMemoryBarrierWithGroupSync();
+
+    if (visible)
+    {
+        uint idx = 0;
+        InterlockedAdd(s_VisibleCount, 1, idx);
+        s_Payload.meshletIndices[idx] = linearIdx;
     }
 
     GroupMemoryBarrierWithGroupSync();
-    DispatchMesh(count, 1, 1, s_Payload);
+    uint visibleCount = s_VisibleCount;
+    DispatchMesh(visibleCount, 1, 1, s_Payload);
 }
 
 struct MeshVertexOut
