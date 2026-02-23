@@ -3,6 +3,7 @@
 #include "Core/SampleBase.h"
 #include "FalcorSceneAdapter.h"
 #include "SceneFormat.h"
+#include "Scene/Scene.h"
 
 using namespace Falcor;
 
@@ -34,6 +35,7 @@ private:
     static const uint32_t kTaskStride = 64;
 
     uint32_t mSceneIndex = 0;
+    ref<Scene> mpScene; ///< 仅用于实时更新相机，不允许访问其他 Falcor 场景数据
     NiagaraFormat::NiagaraSceneFormat mResult;
     bool mConvertOk = false;
 

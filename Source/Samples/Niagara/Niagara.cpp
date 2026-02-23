@@ -1,4 +1,5 @@
 #include "Niagara.h"
+#include "Scene/Scene.h"
 #include "Scene/SceneBuilder.h"
 #include "Utils/Math/Matrix.h"
 
@@ -22,10 +23,23 @@ Niagara::~Niagara()
 void Niagara::loadSelectedScene()
 {
     const char* path = (mSceneIndex == 0) ? "test_scenes/bunny.pyscene" : "Arcade/Arcade.pyscene";
-    ref<Scene> scene = SceneBuilder(getDevice(), path, Settings(), SceneBuilder::Flags::Default).getScene();
-    mConvertOk = scene && convertFalcorSceneToNiagaraScene(scene.get(), mResult);
+    mpScene = SceneBuilder(getDevice(), path, Settings(), SceneBuilder::Flags::Default).getScene();
+    mConvertOk = mpScene && convertFalcorSceneToNiagaraScene(mpScene.get(), mResult);
     if (mConvertOk)
         uploadSceneBuffers();
+    if (mpScene)
+    {
+        float radius = mpScene->getSceneBounds().radius();
+        mpScene->setCameraSpeed(radius * 0.25f);
+        const Fbo* pFbo = getTargetFbo().get();
+        if (pFbo && pFbo->getWidth() > 0 && pFbo->getHeight() > 0)
+        {
+            float nearZ = std::max(0.1f, radius / 750.0f);
+            float farZ = radius * 10;
+            mpScene->getCamera()->setDepthRange(nearZ, farZ);
+            mpScene->getCamera()->setAspectRatio((float)pFbo->getWidth() / (float)pFbo->getHeight());
+        }
+    }
 }
 
 void Niagara::uploadSceneBuffers()
@@ -159,6 +173,12 @@ void Niagara::onResize(uint32_t width, uint32_t height)
     if (mpFbo && mpFbo->getWidth() == width && mpFbo->getHeight() == height)
         return;
 
+    if (mpScene && mpScene->getCameras().size() > 0)
+    {
+        float aspect = (float)width / (float)height;
+        mpScene->getCamera()->setAspectRatio(aspect);
+    }
+
     auto pDevice = getDevice();
     mpFbo = Fbo::create(pDevice);
     auto rtFlags = ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource;
@@ -174,16 +194,32 @@ void Niagara::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
+    if (mpScene)
+        mpScene->update(pRenderContext, getGlobalClock().getTime());
+
     if (!mpMeshletProgram || !mpMeshletVars || mTotalMeshletCount == 0)
         return;
 
     onResize(pTargetFbo->getWidth(), pTargetFbo->getHeight());
 
     float aspect = (float)pTargetFbo->getWidth() / (float)pTargetFbo->getHeight();
-    float fovY = mResult.camera.fovY;
-    float znear = mResult.camera.znear;
-    float4x4 view = mResult.camera.viewMatrix;
-    float4x4 projection = math::perspective(fovY, aspect, znear, 1e6f);
+    float fovY;
+    float znear;
+    float4x4 view;
+    float4x4 projection;
+    if (mpScene && !mpScene->getCameras().empty())
+    {
+        const auto& pCam = mpScene->getCamera();
+        view = pCam->getViewMatrix();
+        projection = pCam->getData().projMatNoJitter;
+    }
+    else
+    {
+        fovY = mResult.camera.fovY;
+        znear = mResult.camera.znear;
+        view = mResult.camera.viewMatrix;
+        projection = math::perspective(fovY, aspect, znear, 1e6f);
+    }
 
     struct NiagaraGlobals
     {
@@ -225,16 +261,18 @@ void Niagara::onGuiRender(Gui* pGui)
         w.text(fmt::format("{} meshes, {} draws, {} meshlets", mResult.geometry.meshes.size(), mResult.draws.size(), mTotalMeshletCount));
     else
         w.text("failed");
+    if (mpScene)
+        mpScene->renderUI(w);
 }
 
 bool Niagara::onKeyEvent(const KeyboardEvent& keyEvent)
 {
-    return false;
+    return mpScene && mpScene->onKeyEvent(keyEvent);
 }
 
 bool Niagara::onMouseEvent(const MouseEvent& mouseEvent)
 {
-    return false;
+    return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
 
 void Niagara::onHotReload(HotReloadFlags reloaded)
