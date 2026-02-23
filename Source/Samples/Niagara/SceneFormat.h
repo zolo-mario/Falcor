@@ -16,14 +16,14 @@ struct alignas(8) Meshlet
 {
     uint16_t center[3];
     uint16_t radius;
-    int8_t cone_axis[3];
-    int8_t cone_cutoff;
+    int16_t cone_axis[3];
+    int16_t cone_cutoff;
     uint32_t dataOffset;
     uint32_t baseVertex;
-    uint8_t vertexCount;
-    uint8_t triangleCount;
-    uint8_t shortRefs;
-    uint8_t padding;
+    uint16_t vertexCount;
+    uint16_t triangleCount;
+    uint16_t shortRefs;
+    uint16_t padding;
 };
 
 struct alignas(16) Material
@@ -46,6 +46,14 @@ struct alignas(16) MeshDraw
     uint32_t meshletVisibilityOffset;
     uint32_t postPass;
     uint32_t materialIndex;
+};
+
+struct alignas(16) MeshTaskCommand
+{
+    uint32_t drawId;
+    uint32_t taskOffset;
+    uint32_t taskCount;
+    uint32_t meshletVisibilityOffset;
 };
 
 struct Vertex

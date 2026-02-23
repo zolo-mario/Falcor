@@ -27,9 +27,27 @@ public:
 
 private:
     void loadSelectedScene();
+    void uploadSceneBuffers();
 
     static const Gui::DropdownList kSceneDropdownList;
+    static const uint32_t kASGroupSize = 32;
+    static const uint32_t kTaskStride = 64;
+
     uint32_t mSceneIndex = 0;
     NiagaraFormat::NiagaraSceneFormat mResult;
     bool mConvertOk = false;
+
+    ref<GraphicsState> mpRasterState;
+    ref<Program> mpMeshletProgram;
+    ref<ProgramVars> mpMeshletVars;
+    ref<Fbo> mpFbo;
+
+    ref<Buffer> mpVb;
+    ref<Buffer> mpMlb;
+    ref<Buffer> mpMdb;
+    ref<Buffer> mpDb;
+    ref<Buffer> mpDcb;
+    ref<Buffer> mpCib;
+
+    uint32_t mTotalMeshletCount = 0;
 };

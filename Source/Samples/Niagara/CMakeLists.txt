@@ -6,6 +6,7 @@ target_sources(Niagara PRIVATE
     SceneFormat.h
     FalcorSceneAdapter.h
     FalcorSceneAdapter.cpp
+    shaders/NiagaraMeshlet.slang
 )
 
 target_link_libraries(Niagara PRIVATE meshoptimizer)

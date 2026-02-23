@@ -90,17 +90,17 @@ static void appendMeshlet(NiagaraFormat::Geometry& result,
     NiagaraFormat::Meshlet m = {};
     m.dataOffset = uint32_t(dataOffset);
     m.baseVertex = baseVertex + minVertex;
-    m.triangleCount = (uint8_t)meshlet.triangle_count;
-    m.vertexCount = (uint8_t)meshlet.vertex_count;
+    m.triangleCount = (uint16_t)meshlet.triangle_count;
+    m.vertexCount = (uint16_t)meshlet.vertex_count;
     m.shortRefs = shortRefs ? 1u : 0u;
     m.center[0] = meshopt_quantizeHalf(bounds.center[0]);
     m.center[1] = meshopt_quantizeHalf(bounds.center[1]);
     m.center[2] = meshopt_quantizeHalf(bounds.center[2]);
     m.radius = meshopt_quantizeHalf(bounds.radius);
-    m.cone_axis[0] = bounds.cone_axis_s8[0];
-    m.cone_axis[1] = bounds.cone_axis_s8[1];
-    m.cone_axis[2] = bounds.cone_axis_s8[2];
-    m.cone_cutoff = bounds.cone_cutoff_s8;
+    m.cone_axis[0] = (int16_t)bounds.cone_axis_s8[0];
+    m.cone_axis[1] = (int16_t)bounds.cone_axis_s8[1];
+    m.cone_axis[2] = (int16_t)bounds.cone_axis_s8[2];
+    m.cone_cutoff = (int16_t)bounds.cone_cutoff_s8;
     result.meshlets.push_back(m);
 }
 
