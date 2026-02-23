@@ -7,6 +7,9 @@
 
 #define AS_GROUP_SIZE 32
 #define MESH_WGSIZE 64
+#ifndef LATE
+#define LATE 0
+#endif
 #define MESH_MAXVTX 64
 #define MESH_MAXTRI 96
 #define TASK_STRIDE 64
@@ -61,7 +64,40 @@ struct NiagaraGlobals
     float zfar;
     float frustum[4];
     uint clusterBackfaceEnabled;
+    float pyramidWidth;
+    float pyramidHeight;
+    float P00;
+    float P11;
+    uint occlusionEnabled;
+    uint clusterOcclusionEnabled;
 };
+
+// projectSphere: 2D polyhedral bounds of clipped perspective-projected 3D sphere (Mara, McGuire 2013)
+// Returns false if sphere is between camera and near plane. AABB in uv [0,1] on success.
+// Falcor view space: z negative for visible, near plane at z=-znear.
+bool projectSphere(float3 c, float r, float znear, float P00, float P11, out float4 aabb)
+{
+    if (c.z > r - znear)
+    {
+        aabb = float4(0, 0, 0, 0);
+        return false;
+    }
+
+    float3 cr = c * r;
+    float czr2 = c.z * c.z - r * r;
+
+    float vx = sqrt(c.x * c.x + czr2);
+    float minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
+    float maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
+
+    float vy = sqrt(c.y * c.y + czr2);
+    float miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
+    float maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
+
+    aabb = float4(minx * P00, miny * P11, maxx * P00, maxy * P11);
+    aabb = aabb.xwzy * float4(0.5, -0.5, 0.5, -0.5) + float4(0.5, 0.5, 0.5, 0.5);
+    return true;
+}
 
 cbuffer CB : register(b0)
 {
@@ -74,6 +110,10 @@ StructuredBuffer<NiagaraMeshlet> gMeshlets : register(t2);
 ByteAddressBuffer gMeshletData : register(t3);
 StructuredBuffer<NiagaraVertex> gVertices : register(t4);
 StructuredBuffer<uint> gClusterIndices : register(t5);
+StructuredBuffer<uint> gDrawVisibility : register(t6);
+RWStructuredBuffer<uint> gMeshletVisibility : register(u0);
+Texture2D<float> gDepthPyramid : register(t8);
+SamplerState gDepthPyramid_sampler : register(s0);
 
 struct Payload
 {
@@ -109,6 +149,7 @@ void ampMain(
     uint linearIdx = base + gtid;
 
     bool visible = false;
+    bool skip = false;
     if (gtid < count)
     {
         uint ci = gClusterIndices[linearIdx];
@@ -120,6 +161,27 @@ void ampMain(
         NiagaraMeshDraw meshDraw = gDraws[command.drawId];
         NiagaraMeshlet meshlet = gMeshlets[command.taskOffset + mgi];
 
+        uint mvi = command.meshletVisibilityOffset + mgi;
+        uint meshletVisibilityBit = (gMeshletVisibility[mvi >> 5] >> (mvi & 31)) & 1u;
+        uint lateDrawVisibility = gDrawVisibility[drawId] & 1u;
+
+        if (gGlobals.clusterOcclusionEnabled != 0)
+        {
+            // Early: only render meshlets that were visible last frame
+            if (LATE == 0 && meshletVisibilityBit == 0)
+                visible = false;
+            else
+                visible = true;
+
+            // Late: skip meshlets we already rendered in Early
+            if (LATE != 0 && lateDrawVisibility == 1 && meshletVisibilityBit != 0)
+                skip = true;
+        }
+        else
+        {
+            visible = true;
+        }
+
         float3 center = decodeHalf3(meshlet.center[0], meshlet.center[1], meshlet.center[2]);
         center = rotateQuat(center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
         center = mul(gGlobals.view, float4(center, 1)).xyz;
@@ -130,20 +192,44 @@ void ampMain(
         cone_axis = mul((float3x3)gGlobals.view, rotateQuat(cone_axis, meshDraw.orientation));
         float cone_cutoff = (float)meshlet.cone_cutoff / 127.0;
 
-        visible = true;
         visible = visible && (center.z * gGlobals.frustum[1] - abs(center.x) * gGlobals.frustum[0] > -radius);
         visible = visible && (center.z * gGlobals.frustum[3] - abs(center.y) * gGlobals.frustum[2] > -radius);
-        // Falcor view space: camera looks down -Z, visible z in [-zfar, -znear]
-        visible = visible && (center.z + radius < -gGlobals.znear);  // back behind near plane
-        visible = visible && (center.z - radius > -gGlobals.zfar);  // front in front of far plane
+        visible = visible && (center.z + radius < -gGlobals.znear);
+        visible = visible && (center.z - radius > -gGlobals.zfar);
         visible = visible && (gGlobals.clusterBackfaceEnabled == 0 || !coneCull(center, radius, cone_axis, cone_cutoff, float3(0, 0, 0)));
+
+        // Late pass: occlusion test against depth pyramid
+        if (LATE != 0 && gGlobals.clusterOcclusionEnabled != 0 && gGlobals.occlusionEnabled != 0 && visible)
+        {
+            float4 aabb;
+            if (projectSphere(center, radius, gGlobals.znear, gGlobals.P00, gGlobals.P11, aabb))
+            {
+                float w = (aabb.z - aabb.x) * gGlobals.pyramidWidth;
+                float h = (aabb.w - aabb.y) * gGlobals.pyramidHeight;
+                float level = floor(log2(max(w, h)));
+                    float2 uv = (aabb.xy + aabb.zw) * 0.5;
+                    float depth = gDepthPyramid.SampleLevel(gDepthPyramid_sampler, uv, level);
+                    float depthSphere = gGlobals.znear / (-center.z - radius);
+                    // depth >= 0.999: empty/cleared, don't cull
+                    visible = visible && (depth >= 0.999 || depthSphere > depth);
+            }
+        }
+
+        // Late pass: update meshlet visibility buffer
+        if (LATE != 0 && gGlobals.clusterOcclusionEnabled != 0)
+        {
+            if (visible)
+                InterlockedOr(gMeshletVisibility[mvi >> 5], 1u << (mvi & 31));
+            else
+                InterlockedAnd(gMeshletVisibility[mvi >> 5], ~(1u << (mvi & 31)));
+        }
     }
 
     if (gtid == 0)
         s_VisibleCount = 0;
     GroupMemoryBarrierWithGroupSync();
 
-    if (visible)
+    if (visible && !skip)
     {
         uint idx = 0;
         InterlockedAdd(s_VisibleCount, 1, idx);

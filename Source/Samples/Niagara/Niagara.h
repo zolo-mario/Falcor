@@ -1,6 +1,7 @@
 #pragma once
 #include "Falcor.h"
 #include "Core/SampleBase.h"
+#include "Core/Pass/ComputePass.h"
 #include "FalcorSceneAdapter.h"
 #include "SceneFormat.h"
 #include "Scene/Scene.h"
@@ -40,8 +41,10 @@ private:
     bool mConvertOk = false;
 
     ref<GraphicsState> mpRasterState;
-    ref<Program> mpMeshletProgram;
-    ref<ProgramVars> mpMeshletVars;
+    ref<Program> mpMeshletProgramEarly;
+    ref<Program> mpMeshletProgramLate;
+    ref<ProgramVars> mpMeshletVarsEarly;
+    ref<ProgramVars> mpMeshletVarsLate;
     ref<Fbo> mpFbo;
 
     ref<Buffer> mpVb;
@@ -50,6 +53,19 @@ private:
     ref<Buffer> mpDb;
     ref<Buffer> mpDcb;
     ref<Buffer> mpCib;
+    ref<Buffer> mpDrawVisibility;
+    ref<Buffer> mpMeshletVisibility;
+    ref<Texture> mpDepthPyramid;
+    ref<ComputePass> mpDepthReducePass;
+    ref<ComputePass> mpUpdateDvbPass;
 
     uint32_t mTotalMeshletCount = 0;
+    uint32_t mDepthPyramidWidth = 0;
+    uint32_t mDepthPyramidHeight = 0;
+    uint32_t mDepthPyramidLevels = 0;
+    bool mDvbCleared = false;
+    bool mMvbCleared = false;
+    bool mTwoPhaseEnabled = true;
+    bool mOcclusionEnabled = true;
+    bool mClusterOcclusionEnabled = true;
 };

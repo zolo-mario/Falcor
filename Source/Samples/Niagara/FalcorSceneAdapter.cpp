@@ -278,6 +278,7 @@ bool convertFalcorSceneToNiagaraScene(Scene* pScene, NiagaraFormat::NiagaraScene
         geometry.meshes.push_back(mesh);
     }
     const auto& globalMatrices = pScene->getAnimationController()->getGlobalMatrices();
+    uint32_t meshletVisibilityCount = 0;
     for (uint32_t instanceID = 0; instanceID < pScene->getGeometryInstanceCount(); ++instanceID)
     {
         const auto& instance = pScene->getGeometryInstance(instanceID);
@@ -286,6 +287,10 @@ bool convertFalcorSceneToNiagaraScene(Scene* pScene, NiagaraFormat::NiagaraScene
         MeshID meshID{instance.geometryID};
         if (meshID.get() >= geometry.meshes.size())
             continue;
+        const auto& mesh = geometry.meshes[meshID.get()];
+        if (mesh.lodCount == 0)
+            continue;
+        uint32_t meshletCount = mesh.lods[0].meshletCount;
         float3 scale, translation, skew;
         float4 perspective;
         quatf orientation;
@@ -300,10 +305,11 @@ bool convertFalcorSceneToNiagaraScene(Scene* pScene, NiagaraFormat::NiagaraScene
         draw.scale = std::max({scale.x, scale.y, scale.z});
         draw.orientation = orientation;
         draw.meshIndex = meshID.get();
-        draw.meshletVisibilityOffset = 0;
+        draw.meshletVisibilityOffset = meshletVisibilityCount;
         draw.postPass = 0;
         draw.materialIndex = (uint32_t)(instance.materialID + 1);
         draws.push_back(draw);
+        meshletVisibilityCount += meshletCount;
     }
     if (!pScene->getCameras().empty())
     {
