@@ -1,4 +1,5 @@
 # add_subdirectory(CudaInterop)
+add_subdirectory(GraphicsGems)
 add_subdirectory(HelloDXR)
 add_subdirectory(MultiSampling)
 add_subdirectory(ShaderToy)
