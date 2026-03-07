@@ -1,29 +1,9 @@
-: This script sets up a Visual Studio 2022 solution.
+:: Thin wrapper - delegates to tools/dev/setup.ps1
+:: Usage: setup_vs2022.bat [ci]
 
 @echo off
-setlocal
+set PRESET=windows-vs2022
+if "%~1"=="ci" set PRESET=windows-vs2022-ci
 
-set PRESET_SUFFIX=""
-
-if "%~1"=="ci" (
-    set PRESET_SUFFIX="-ci"
-)
-
-: Fetch dependencies.
-call %~dp0\setup.bat
-
-: Configuration.
-set PRESET=windows-vs2022%PRESET_SUFFIX%
-set TOOLSET=host=x86
-set CMAKE_EXE=%~dp0\tools\.packman\cmake\bin\cmake.exe
-
-: Configure solution by running cmake.
-echo Configuring Visual Studio solution ...
-%CMAKE_EXE% --preset %PRESET% -T %TOOLSET%
-if errorlevel 1 (
-    echo Failed to configure solution!
-    exit /b 1
-)
-
-: Success.
-exit /b 0
+powershell -ExecutionPolicy Bypass -File "%~dp0tools\dev\setup.ps1" -Preset %PRESET%
+exit /b %errorlevel%

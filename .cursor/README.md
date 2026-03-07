@@ -18,6 +18,7 @@
 │   │       └── D3D12*.md / Meshlet*.md ...
 │   ├── migrate-niagara-renderer.md # Niagara 渲染器迁移 Agent
 │   ├── migrate-niagara-review.md   # Niagara 迁移审查 Agent
+│   ├── falcor-dev.md               # 项目开发经理（roadmap/进度跟踪）
 │   ├── qa.md                       # 测试与质量保证 Agent
 │   └── render-pass-architect.md    # RenderPass 架构设计 Agent
 ├── _archived/          # 已归档（不再主动使用）
@@ -36,6 +37,7 @@
 | **dx-samples-migrate** | 将 DirectX-Graphics-Samples 迁移至 Falcor SampleBase 插件，通过 Karma 运行 |
 | **migrate-niagara-renderer** | 将 Niagara mesh-shading 渲染器移植为 Falcor SampleApp |
 | **migrate-niagara-review** | 对照 migrate-niagara-renderer 计划审查实现 |
+| **falcor-dev** | Falcor 项目开发经理：跟踪 roadmap、进度、阻塞项与跨项目优先级 |
 | **qa** | 测试用例管理、图像误差测量、参考图像更新 |
 | **render-pass-architect** | 设计 RenderPass 骨架、ShaderBind 风格文档 |
 
