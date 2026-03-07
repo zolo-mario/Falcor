@@ -6,5 +6,10 @@ param(
     [string[]]$ExtraArgs
 )
 
-& "$PSScriptRoot\build.ps1" -Preset windows-vs2022 @ExtraArgs
+$ForwardArgs = @()
+if ($ExtraArgs) {
+    $ForwardArgs = @($ExtraArgs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+& "$PSScriptRoot\build.ps1" -Preset windows-vs2022 @ForwardArgs
 exit $LASTEXITCODE
