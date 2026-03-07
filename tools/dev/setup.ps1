@@ -70,7 +70,7 @@ if (-not (Test-Path $VscodePath)) {
 # 4. CMake configure
 # ---------------------------------------------------------------------------
 Write-Host "Configuring solution (preset: $Preset) ..."
-& $CmakeExe --preset $Preset -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+& $CmakeExe --preset $Preset "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to configure solution!"
     exit $LASTEXITCODE
