@@ -33,3 +33,27 @@ jobs:
         run: msbuild.exe build\windows-vs2022\Falcor.sln /p:Configuration=${{ matrix.config }}
         shell: cmd
 
+  windows-vs2026:
+    name: Windows VS2026
+    runs-on: windows-2025
+    strategy:
+      matrix:
+        include:
+          - config: Release
+          - config: Debug
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure
+        run: setup_vs2026.bat
+        shell: cmd
+      - name: Build
+        run: msbuild.exe build\windows-vs2026\Falcor.sln /p:Configuration=${{ matrix.config }}
+        shell: cmd
+

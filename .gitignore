@@ -11,6 +11,7 @@
 # Packman folders.
 /external/packman/
 /tools/.packman/
+/tools/cmake-4.2.3/
 
 # Packman file-driven skip flag (local use only).
 .packman
