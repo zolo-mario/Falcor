@@ -3,6 +3,44 @@ name: migrate-niagara-renderer
 description: 将 Niagara mesh-shading 渲染器移植至 Falcor 为独立 SampleApp 的专家。主动用于：迁移 Niagara 功能、实现 NiagaraScene 转换、draw culling、depth pyramid、task shading、cluster culling。遵循与原始 Niagara 的 1:1 映射；不使用 Mogwai、RenderGraph 或 RenderPass。不支持 Keyframe/Animation。
 ---
 
+检查功能是否迁移完成 从 Source\Niagara 到 Source\Samples\Niagara
+
+结论：**从 `Source/Niagara` 到 `Source/Samples/Niagara` 的功能迁移还没有完成**，目前属于“可运行的阶段性版本”。
+
+### 主要检查结果（按影响排序）
+
+- **高优先级缺口：完整渲染管线未迁移**
+  - 原版包含 `drawcull/tasksubmit/clustersubmit/clustercull/final/shadow/shadowfill/shadowblur` 等阶段；样例侧未看到对应实现与着色器入口。
+  - `Source/Niagara/niagara/shaders/` 有完整 GLSL 管线；`Source/Samples/Niagara/shaders/` 仅有 `NiagaraMeshlet.slang`、`NiagaraDepthReduce.slang`、`NiagaraUpdateDvb.slang`。
+
+- **高优先级缺口：最终着色与RT阴影未迁移**
+  - 原版有 `final.comp.glsl`、`shadow*.comp.glsl`；样例侧没有对应 Slang/C++ 调度路径。
+  - 现在 `NiagaraMeshlet.slang` 的 PS 仅输出 `wpos`（`SV_TARGET0`），不是原版完整 final shading。
+
+- **中优先级缺口：传统光栅路径与 cluster 提交流程缺失**
+  - 原版有 `mesh.vert/mesh.frag`、`clustersubmit.comp` 等；样例侧未实现同等流程。
+  - 当前样例以 mesh shader 主路径为主，和原版“多路径可切换”不一致。
+
+- **中优先级缺口：场景功能范围收缩**
+  - 样例有 `FalcorSceneAdapter` + `NiagaraSceneFormat` 转换，基础几何/材质/draw 已做，但动画等高级数据未覆盖（与迁移文档“不支持动画”一致）。
+  - 这意味着“可跑通”不等于“功能等价迁移完成”。
+
+### 已完成部分（确认迁移到位）
+
+- `Scene -> NiagaraSceneFormat` 适配已落地：`FalcorSceneAdapter.cpp`。
+- 基础 buffer 上传链路已在 `Niagara.cpp` 中实现（`vb/mlb/mdb/db/dcb/cib/dvb/mvb`）。
+- 两阶段雏形已存在：Early/Late mesh shader、depth pyramid 构建、`UpdateDvb` 回写。
+
+### 当前成熟度判断
+
+- 按“原版功能等价迁移”标准：**未完成（大约中期，约 40%~55%）**。  
+- 按“样例可运行并验证核心 meshlet 思路”标准：**已完成基础版**。
+
+如果你要，我可以下一步给你一张“**原版功能清单 -> Samples 对应状态**”的逐项对照表（Done/Partial/Missing），直接可贴进 `falcor-dev.md` 当里程碑验收表。
+
+---
+
+```md
 你是将 Niagara 渲染器迁移到 Falcor 的专家。Niagara 是基于 Vulkan 的 mesh-shading 演示，采用 GPU-driven culling。迁移使用**独立的 Niagara SampleApp**，不使用 Mogwai、RenderGraph 或 RenderPass。
 
 **权威参考**：`doc/niagara/` — 以这些文档为 pipeline 顺序、buffer 名称、数据结构和 shader 语义的权威来源。
@@ -88,3 +126,4 @@ description: 将 Niagara mesh-shading 渲染器移植至 Falcor 为独立 Sample
 - 列出所需变更（shaders、C++、资源）
 - 提供具体代码修改，保留原始 Niagara 命名
 - 注：Falcor Scene 仅用于加载，转换后丢弃
+```
