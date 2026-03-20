@@ -453,10 +453,10 @@ endif()
 
 add_subdirectory(Source/Falcor)
 add_subdirectory(Source/Modules)
-# add_subdirectory(Source/Mogwai)
+add_subdirectory(Source/Mogwai)
 # add_subdirectory(Source/Niagara)
 add_subdirectory(Source/plugins)
-# add_subdirectory(Source/RenderPasses)
+add_subdirectory(Source/RenderPasses)
 add_subdirectory(Source/Tools)
 add_subdirectory(Source/Samples)
 add_subdirectory(Source/Karma)
@@ -485,11 +485,11 @@ file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/settings.json CONTENT "{ \"stand
 
 # Make Mogwai, Karma and FalcorPython depend on all plugins.
 if(plugin_targets)
-    # add_dependencies(Mogwai ${plugin_targets})
+    add_dependencies(Mogwai ${plugin_targets})
     add_dependencies(Karma ${plugin_targets})
     add_dependencies(FalcorPython ${plugin_targets})
-    # add_dependencies(Mogwai FalcorPython)
+    add_dependencies(Mogwai FalcorPython)
 endif()
 
-# Make Mogwai the default startup project in VS.
+# Default Visual Studio startup project (image tests use Mogwai + ImageCompare).
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Karma)

@@ -75,5 +75,6 @@ cmake --preset windows-vs2022 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 - 若 `cmake` 不在 PATH 中，使用 packman 版：`tools/.packman/cmake/bin/cmake.exe`。
 - 依赖：确保 packman 包已安装（需要时运行 `.\setup.ps1` 或 `.\tools\dev\setup.ps1`）。
 - 在 PowerShell 里调用批处理文件必须写成 `.\xxx.bat`，否则可能出现“找不到命令”。
+- 图像测试需要 `Mogwai.exe` 与 `ImageCompare.exe`；当前 CMake 已纳入二者，全量 `.\build.ps1` 会生成。
 - 构建后：通过 run skill 运行测试或 Mogwai。
 - FalcorTest 包含 SlangUserGuide shader 示例和测试（`Source/Tools/FalcorTest/SlangUserGuide/`）。
