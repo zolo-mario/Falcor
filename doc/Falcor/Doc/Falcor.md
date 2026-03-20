@@ -37,11 +37,11 @@ Falcor 是一个旨在提高图形学研究和原型开发效率的实时渲染�
 Falcor 使用 **CMake** 构建系统。
 
 #### Visual Studio 2022
-1.  克隆仓库后运行 `setup_vs2022.bat`。
+1.  克隆仓库后运行 `setup.ps1`。
 2.  解决方案将生成在 `build/windows-vs2022`，二进制文件在 `bin` 子目录中。
 
 #### Visual Studio Code
-1.  克隆仓库后运行 `setup.bat`（这会配置 `.vscode` 环境）。
+1.  克隆仓库后运行 `setup.ps1`（子模块、packman、`.vscode` 与 CMake 解决方案）。
 2.  安装推荐的插件（尤其是 **CMake Tools**）。
 3.  按 `Ctrl+Shift+P` 选择 `CMake: Select Configure Preset`，选择 **Windows Ninja/MSVC**。
 4.  按 F7 构建。

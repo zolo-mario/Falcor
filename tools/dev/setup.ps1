@@ -1,32 +1,33 @@
 <#
 .SYNOPSIS
-    Fetch Falcor dependencies and configure a CMake solution.
+    Fetch Falcor dependencies and optionally configure a CMake solution.
 
 .PARAMETER Preset
-    CMake configure preset. Allowed values:
-      windows-vs2022 | windows-vs2022-ci
+    CMake configure preset: windows-vs2022 | windows-vs2022-ci
     Default: windows-vs2022
+    Ignored when -DepsOnly is set.
+
+.PARAMETER DepsOnly
+    Only update git submodules, pull packman dependencies, and copy VS Code defaults.
+    Skips CMake configure (for environments that only need tools/.packman, e.g. tests).
 
 .EXAMPLE
-    # First-time setup (default)
     .\tools\dev\setup.ps1
-
-    # CI mode (enables header validation, disables PCH)
     .\tools\dev\setup.ps1 -Preset windows-vs2022-ci
+    .\tools\dev\setup.ps1 -DepsOnly
 #>
 
 param(
     [ValidateSet("windows-vs2022", "windows-vs2022-ci")]
-    [string]$Preset = "windows-vs2022"
+    [string]$Preset = "windows-vs2022",
+
+    [switch]$DepsOnly
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path "$PSScriptRoot\..\.."
 $CmakeExe = Join-Path $Root "tools\.packman\cmake\bin\cmake.exe"
 
-# ---------------------------------------------------------------------------
-# 1. Git submodules
-# ---------------------------------------------------------------------------
 Write-Host "Updating git submodules ..."
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "git not found on PATH. Initialize submodules manually and re-run."
@@ -36,9 +37,6 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 & git -C $Root submodule update --init --recursive
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# ---------------------------------------------------------------------------
-# 2. Packman dependencies
-# ---------------------------------------------------------------------------
 Write-Host "Fetching dependencies ..."
 $Packman = Join-Path $Root "tools\packman\packman.cmd"
 & cmd /c $Packman pull --platform windows-x86_64 "$Root\dependencies.xml"
@@ -47,9 +45,6 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# ---------------------------------------------------------------------------
-# 3. VS Code workspace (first-time only)
-# ---------------------------------------------------------------------------
 $VscodePath = Join-Path $Root ".vscode"
 if (-not (Test-Path $VscodePath)) {
     Write-Host "Setting up VS Code workspace ..."
@@ -57,9 +52,11 @@ if (-not (Test-Path $VscodePath)) {
     Copy-Item -Path "$Root\.vscode-default\*" -Destination $VscodePath -Recurse -Force
 }
 
-# ---------------------------------------------------------------------------
-# 4. CMake configure
-# ---------------------------------------------------------------------------
+if ($DepsOnly) {
+    Write-Host "Setup complete (dependencies only)."
+    exit 0
+}
+
 Write-Host "Configuring solution (preset: $Preset) ..."
 & $CmakeExe --preset $Preset "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 if ($LASTEXITCODE -ne 0) {

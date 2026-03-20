@@ -1,10 +1,9 @@
 <#
 .SYNOPSIS
-    Configure and build Falcor.
+    Configure and build Falcor (Visual Studio 2022 presets only).
 
 .PARAMETER Preset
-    CMake configure preset. Allowed values:
-      windows-vs2022 | windows-vs2022-ci
+    CMake configure preset: windows-vs2022 | windows-vs2022-ci
     Default: windows-vs2022
 
 .PARAMETER Config
@@ -16,16 +15,10 @@
     Omit to build everything.
 
 .EXAMPLE
-    # Build all (VS2022, Debug)
     .\build.ps1
-
-    # Build a specific target
     .\build.ps1 -Target Karma
-
-    # Release build
+    .\build.ps1 -Preset windows-vs2022-ci -Target Niagara
     .\build.ps1 -Config Release
-
-    # Pass extra cmake --build flags directly
     .\build.ps1 -Target FalcorTest -- --parallel 8
 #>
 
@@ -47,9 +40,6 @@ $CmakeExe = Join-Path $ScriptDir "tools\.packman\cmake\bin\cmake.exe"
 
 Push-Location $ScriptDir
 
-# ---------------------------------------------------------------------------
-# Configure (silent; print only errors)
-# ---------------------------------------------------------------------------
 $cfgOut = @(& $CmakeExe --preset $Preset "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" 2>&1)
 if ($LASTEXITCODE -ne 0) {
     $cfgOut | Where-Object { $_ -match "error|failed|Error C|fatal|CMake Error" } |
@@ -57,9 +47,6 @@ if ($LASTEXITCODE -ne 0) {
     Pop-Location; exit $LASTEXITCODE
 }
 
-# ---------------------------------------------------------------------------
-# Build (silent; print only errors)
-# ---------------------------------------------------------------------------
 $buildArgs = @("--build", "build/$Preset", "--config", $Config)
 if ($Target) { $buildArgs += @("--target", $Target) }
 $buildArgs += $ExtraArgs

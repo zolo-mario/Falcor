@@ -70,6 +70,6 @@ python tools/make_new_sample_app.py D3D12RaytracingHelloWorld --path Source/Samp
 
 ## 验证
 
-- Build: `.\build_vs2022.ps1 --target Karma`
+- Build: `.\build.ps1 -Target Karma`
 - Run: `Karma.exe --sample Samples/Desktop/D3D12Raytracing/D3D12RaytracingHelloWorld`
 - 视觉：中心三角形显示重心着色（红绿蓝渐变），外围 uv 渐变，背景黑色

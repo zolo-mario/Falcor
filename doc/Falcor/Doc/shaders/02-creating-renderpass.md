@@ -284,7 +284,7 @@ Properties getProperties() const override
 
 ```bash
 # 方法1：重新运行setup
-setup_vs2022.bat
+setup.ps1
 
 # 方法2：使用CMake命令
 cmake --preset windows-vs2022
@@ -318,7 +318,7 @@ tools\make_new_render_pass.bat FilmGrain
 ## 常见问题
 
 ### Q: 创建后Visual Studio看不到新项目？
-A: 运行 `setup_vs2022.bat` 重新生成解决方案。
+A: 运行 `setup.ps1` 重新生成解决方案。
 
 ### Q: 编译错误 "unresolved external symbol registerPlugin"
 A: 确保在.cpp文件中实现了 `registerPlugin` 函数，并使用了 `FALCOR_API_EXPORT` 宏。
@@ -327,4 +327,4 @@ A: 确保在.cpp文件中实现了 `registerPlugin` 函数，并使用了 `FALCO
 A:
 1. 删除目录 `Source/RenderPasses/YourPass/`
 2. 从 `Source/RenderPasses/CMakeLists.txt` 中移除 `add_subdirectory(YourPass)`
-3. 重新运行 `setup_vs2022.bat`
+3. 重新运行 `setup.ps1`

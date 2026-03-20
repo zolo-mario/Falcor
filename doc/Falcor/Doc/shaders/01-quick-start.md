@@ -7,12 +7,12 @@ This document provides a quick start guide to create your first shader in 30 min
 ## 前置条件 (Prerequisites)
 
 1. **已构建的Falcor项目**
-   - 确保已运行 `setup_vs2022.bat`
+   - 确保已运行 `setup.ps1`
    - 使用Visual Studio 2022成功编译项目
    - 构建目录：`build/windows-vs2022/`
 
 2. **Python环境**
-   - Falcor自带的Python环境（通过setup.bat自动安装）
+   - Falcor自带的Python环境（通过 setup.ps1 自动安装）
    - 位置：`tools/.packman/python/python.exe`
 
 ## 五步创建第一个Shader

@@ -96,7 +96,7 @@ description: Falcor 项目开发经理。Proactively 跟踪多子项目 roadmap�
 ---
 ## 工具链
 
-官方构建与 CI 仅支持 **Visual Studio 2022**（CMake preset `windows-vs2022`）。本地请使用 `setup_vs2022.bat` / `build_vs2022.ps1`。
+官方构建与 CI 仅支持 **Visual Studio 2022**（CMake preset `windows-vs2022`）。本地请使用 `setup.ps1` / `build.ps1`。
 
 ## 开发时间轴
 

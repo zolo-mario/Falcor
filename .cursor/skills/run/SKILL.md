@@ -9,8 +9,8 @@ description: 运行 Falcor 应用、测试和脚本。在用户要求运行 Karm
 
 | 操作 | 命令 |
 |------|------|
-| **构建** | `build_vs2022.bat` 或 `.\build_vs2022.ps1` |
-| 构建指定 target | `.\build_vs2022.ps1 --target Karma` |
+| **构建** | `.\build.ps1` |
+| 构建指定 target | `.\build.ps1 -Target Karma` |
 | 单元测试 (C++) | `tests/run_unit_tests.bat` 或 `.\tests\run_unit_tests.bat` |
 | MemoryOrder 单元测试 | `.\tests\run_unit_tests.bat --test-case MemoryOrder` |
 | 图像测试 | `tests/run_image_tests.bat` |
@@ -80,11 +80,10 @@ Karma.exe --sample D3D12ExecuteIndirect --headless
 
 **构建**（全部或指定 target）：
 ```bash
-.\build_vs2022.ps1
-.\build_vs2022.ps1 --target Niagara
-.\build_vs2022.ps1 --target Karma
+.\build.ps1
+.\build.ps1 -Target Niagara
+.\build.ps1 -Target Karma
 ```
-或使用 `build_vs2022.bat`（批处理）。
 
 ## 测试套件
 
@@ -152,7 +151,7 @@ $env:PATH = "F:\Falcor\build\windows-vs2022\bin\Debug;F:\Falcor\build\windows-vs
 ## 提示
 
 - 在仓库根目录运行 `.bat`/`.ps1` 文件；它们会自动解析 `tools/.packman/python` 和 `tests/testing/`。
-- **构建**：`build_vs2022.ps1` 使用 packman CMake；传入 `--target <name>` 指定 target。
-- 若 packman Python 缺失，先运行 `setup.bat`。
+- **构建**：`build.ps1` 使用 packman CMake；传入 `-Target <name>` 指定 target。
+- 若 packman Python 缺失，可先运行 `.\setup.ps1 deps`（仅依赖）或完整 `.\setup.ps1`。
 - 图像测试默认使用 `tests/environment/default.json`，除非被覆盖。
 - **SlangUserGuide** 测试位于 `Source/Tools/FalcorTest/SlangUserGuide/`；使用 `--test-suite HelloWorldTests` 运行（套件名 = 源文件名不含扩展名）。
