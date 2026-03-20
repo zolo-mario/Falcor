@@ -1,7 +1,10 @@
 IMAGE_TEST = {
     # The test uses GBufferRaster which is not supported on Vulkan.
     "device_types": ["d3d12"],
-    'tolerance': 1e-7
+    'tolerance': 1e-7,
+    # DLSS requires NVIDIA NGX; excluded from default tag so non-NVIDIA runs pass.
+    # Run explicitly: run_image_tests.bat -t nvidia
+    "tags": ["nvidia", "dlss"],
 }
 
 # NOTE:

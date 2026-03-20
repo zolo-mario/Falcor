@@ -107,7 +107,7 @@ tests/run_unit_tests.bat --test-suite HelloWorldTests
 ```bash
 tests/run_image_tests.bat
 ```
-选项：`--gen-refs`、`--parallel N`、`--config`、`--environment`
+选项：`--gen-refs`、`--parallel N`、`--config`、`--environment`、`-t <tags>`（默认 `default`；需 NVIDIA NGX/DLSS 的用例带 `nvidia`，如 `run_image_tests.bat -t nvidia`）
 
 **Python 测试**（需 conda + CONDA_PYTHON_EXE）：
 ```bash
