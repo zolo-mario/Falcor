@@ -6,9 +6,6 @@
     <dependency name="tools_cmake" linkPath="tools/.packman/cmake">
         <package name="cmake" version="3.24.1+nv3-${platform}" platforms="windows-x86_64 linux-x86_64" />
     </dependency>
-    <dependency name="tools_cmake_vs2026" linkPath="tools/cmake-4.2.3">
-        <package name="cmake" version="4.2.3" remotes="github-cmake" platforms="windows-x86_64" />
-    </dependency>
     <dependency name="tools_ninja" linkPath="tools/.packman/ninja">
         <package name="ninja" version="1.10.2+pipeline2996563-${platform}" platforms="windows-x86_64 linux-x86_64" />
     </dependency>
@@ -23,7 +20,6 @@
     <dependency name="falcor_dependencies" linkPath="external/packman/deps">
         <package name="falcor_dependencies" version="f80dd590-${platform}" platforms="windows-x86_64 linux-x86_64" />
     </dependency>
-    <remote name="github-cmake" type="https" packageLocation="github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-${platform}.zip"/>
     <remote name="github-slang" type="https" packageLocation="github.com/shader-slang/slang/releases/download/v${version}/slang-${version}-${platform}.zip"/>
     <dependency name="slang" linkPath="external/packman/slang">
         <package name="slang" version="2024.1.34" remotes="github-slang" platforms="windows-x86_64 linux-x86_64"/>

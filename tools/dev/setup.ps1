@@ -4,34 +4,25 @@
 
 .PARAMETER Preset
     CMake configure preset. Allowed values:
-      windows-vs2022 | windows-vs2022-ci | windows-vs2026 | windows-vs2026-ci
-    Default: windows-vs2026
+      windows-vs2022 | windows-vs2022-ci
+    Default: windows-vs2022
 
 .EXAMPLE
-    # First-time setup for VS2026 (default)
+    # First-time setup (default)
     .\tools\dev\setup.ps1
 
-    # Explicit VS2022
-    .\tools\dev\setup.ps1 -Preset windows-vs2022
-
     # CI mode (enables header validation, disables PCH)
-    .\tools\dev\setup.ps1 -Preset windows-vs2026-ci
+    .\tools\dev\setup.ps1 -Preset windows-vs2022-ci
 #>
 
 param(
-    [ValidateSet("windows-vs2022", "windows-vs2022-ci", "windows-vs2026", "windows-vs2026-ci")]
-    [string]$Preset = "windows-vs2026"
+    [ValidateSet("windows-vs2022", "windows-vs2022-ci")]
+    [string]$Preset = "windows-vs2022"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path "$PSScriptRoot\..\.."
-
-# Pick cmake based on preset family
-if ($Preset -like "*vs2026*") {
-    $CmakeExe = Join-Path $Root "tools\cmake-4.2.3\bin\cmake.exe"
-} else {
-    $CmakeExe = Join-Path $Root "tools\.packman\cmake\bin\cmake.exe"
-}
+$CmakeExe = Join-Path $Root "tools\.packman\cmake\bin\cmake.exe"
 
 # ---------------------------------------------------------------------------
 # 1. Git submodules

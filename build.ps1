@@ -4,8 +4,8 @@
 
 .PARAMETER Preset
     CMake configure preset. Allowed values:
-      windows-vs2022 | windows-vs2026
-    Default: windows-vs2026
+      windows-vs2022 | windows-vs2022-ci
+    Default: windows-vs2022
 
 .PARAMETER Config
     Build configuration: Debug or Release.
@@ -16,22 +16,22 @@
     Omit to build everything.
 
 .EXAMPLE
-    # Build all (VS2026, Debug)
+    # Build all (VS2022, Debug)
     .\build.ps1
 
     # Build a specific target
     .\build.ps1 -Target Karma
 
-    # Release build with VS2022
-    .\build.ps1 -Preset windows-vs2022 -Config Release
+    # Release build
+    .\build.ps1 -Config Release
 
     # Pass extra cmake --build flags directly
     .\build.ps1 -Target FalcorTest -- --parallel 8
 #>
 
 param(
-    [ValidateSet("windows-vs2022", "windows-vs2026")]
-    [string]$Preset = "windows-vs2026",
+    [ValidateSet("windows-vs2022", "windows-vs2022-ci")]
+    [string]$Preset = "windows-vs2022",
 
     [ValidateSet("Debug", "Release")]
     [string]$Config = "Debug",
@@ -43,12 +43,7 @@ param(
 )
 
 $ScriptDir = $PSScriptRoot
-
-if ($Preset -like "*vs2026*") {
-    $CmakeExe = Join-Path $ScriptDir "tools\cmake-4.2.3\bin\cmake.exe"
-} else {
-    $CmakeExe = Join-Path $ScriptDir "tools\.packman\cmake\bin\cmake.exe"
-}
+$CmakeExe = Join-Path $ScriptDir "tools\.packman\cmake\bin\cmake.exe"
 
 Push-Location $ScriptDir
 
