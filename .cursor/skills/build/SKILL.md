@@ -35,7 +35,7 @@ cmake --build build/windows-vs2022 --config Debug --target <TARGET_NAME>
 | 类别 | 示例 |
 |----------|----------|
 | RenderPasses | GBuffer, PathTracer, RTXDIPass, TAA, ToneMapper, AccumulatePass, SVGFPass, DLSSPass, DebugPasses, Utils |
-| Apps | Karma, Mogwai, Niagara, FalcorTest, ImageCompare, RenderGraphEditor |
+| Apps | Karma, Mogwai, Niagara, FalcorTest, ImageCompare |
 
 Target 名称 = `Source/RenderPasses` 中的文件夹名（如 `GBuffer`、`PathTracer`）。
 

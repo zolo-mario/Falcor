@@ -108,7 +108,7 @@ Falcor is a research-oriented real-time rendering framework built on modern grap
 8. Mogwai (interactive rendering application)
 9. Plugins (Importers: Assimp, Mitsuba, PBRT, Python, USD)
 10. Samples (CUDAInterop, HelloDXR, MultiSampling, SampleAppTemplate, ShaderToy, Visualization2D)
-11. Tools (FalcorTest, ImageCompare, RenderGraphEditor)
+11. Tools (FalcorTest, ImageCompare)
 12. DiffRendering (differentiable rendering system)
 13. Testing (unit testing framework)
 

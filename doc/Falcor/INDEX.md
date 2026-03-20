@@ -178,7 +178,6 @@ This document provides a comprehensive index of all modules analyzed in the Falc
 **Folder Note**: [`Mogwai/Mogwai.md`](Mogwai/Mogwai.md)
 **Components**:
 - Application framework
-- Render graph editor
 - Scene management
 - UI system
 - Scripting system

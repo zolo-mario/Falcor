@@ -156,7 +156,6 @@
    - [Tools](Tools/Tools.md) - Tools module specification
    - FalcorTest - Comprehensive test suite
    - ImageCompare - Image comparison tool
-   - RenderGraphEditor - Render graph editor
 
 12. **Cross-Module Dependencies** - Inter-module dependency documentation
    - [CrossModuleDependencies](CrossModuleDependencies.md) - Dependency matrix and integration points
@@ -259,7 +258,6 @@
 - Instancing
 
 ### Development Tools
-- Render Graph Editor
 - Scene Debugger
 - Pixel Inspector
 - BSDF Viewer
@@ -292,7 +290,6 @@
 - Error measurement and validation
 
 ### Developer Experience
-- Interactive render graph editor
 - Comprehensive UI system
 - Python scripting support
 - Hot-reload for rapid iteration

@@ -168,24 +168,20 @@ namespace Mogwai
         Gui::Window w(pGui, "Graphs", mShowGraphUI, { 300, 600 }, { 10, 80 }, Gui::WindowFlags::Default);
         if (!mShowGraphUI) return;
 
-        if (mpRenderer->mEditorProcess == 0)
+        Gui::DropdownList graphList;
+        for (size_t i = 0; i < mpRenderer->mGraphs.size(); i++) graphList.push_back({ (uint32_t)i, mpRenderer->mGraphs[i].pGraph->getName() });
+        uint32_t activeGraph = mpRenderer->mActiveGraph;
+        if (w.dropdown("Active Graph", graphList, activeGraph))
         {
-            Gui::DropdownList graphList;
-            for (size_t i = 0; i < mpRenderer->mGraphs.size(); i++) graphList.push_back({ (uint32_t)i, mpRenderer->mGraphs[i].pGraph->getName() });
-            uint32_t activeGraph = mpRenderer->mActiveGraph;
-            if (w.dropdown("Active Graph", graphList, activeGraph))
-            {
-                mpRenderer->setActiveGraph(activeGraph);
-            }
-
-            if (w.button("Edit")) mpRenderer->openEditor();
-            if (w.button("Remove", true))
-            {
-                mpRenderer->removeActiveGraph();
-                if (mpRenderer->mGraphs.empty()) return;
-            }
-            w.separator();
+            mpRenderer->setActiveGraph(activeGraph);
         }
+
+        if (w.button("Remove", true))
+        {
+            mpRenderer->removeActiveGraph();
+            if (mpRenderer->mGraphs.empty()) return;
+        }
+        w.separator();
 
         // Active graph output
         mpRenderer->graphOutputsGui(w); // MOGWAI shouldn't be here

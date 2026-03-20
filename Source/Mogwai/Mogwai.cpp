@@ -5,7 +5,6 @@
 #include "GlobalState.h"
 #include "Core/AssetResolver.h"
 #include "Scene/Importer.h"
-#include "RenderGraph/RenderGraphImportExport.h"
 #include "RenderGraph/RenderPassStandardFlags.h"
 #include "Utils/Scripting/Scripting.h"
 #include "Utils/Timing/TimeReport.h"
@@ -23,11 +22,6 @@ namespace Mogwai
     namespace
     {
         std::unique_ptr<std::map<std::string, Extension::CreateFunc>> gExtensions; // Map ensures ordering
-
-        const std::string kEditorExecutableName = "RenderGraphEditor";
-        const std::string kEditorSwitch = "--editor";
-        const std::string kGraphFileSwitch = "--graph-file";
-        const std::string kGraphNameSwitch = "--graph-name";
 
         const std::filesystem::path kAppDataPath = getAppDataDirectory() / "NVIDIA/Falcor/Mogwai.json";
     }
@@ -59,7 +53,6 @@ namespace Mogwai
 
     void Renderer::onShutdown()
     {
-        resetEditor();
         getDevice()->wait(); // Need to do that because clearing the graphs will try to release some state objects which might be in use
         mGraphs.clear();
         if (mPipedOutput)
@@ -289,47 +282,6 @@ namespace Mogwai
         else
         {
             logWarning("RenderGraphViewer::onDroppedFile() - Unknown file extension '{}'", ext);
-        }
-    }
-
-    void Renderer::editorFileChangeCB()
-    {
-        mEditorScript = readFile(mEditorTempPath);
-    }
-
-    void Renderer::openEditor()
-    {
-        bool unmarkOut = (isInVector(mGraphs[mActiveGraph].originalOutputs, mGraphs[mActiveGraph].mainOutput) == false);
-        // If the current graph output is not an original output, unmark it
-        if (unmarkOut) mGraphs[mActiveGraph].pGraph->unmarkOutput(mGraphs[mActiveGraph].mainOutput);
-
-        mEditorTempPath = getTempFilePath();
-
-        // Save the graph
-        RenderGraphExporter::save(mGraphs[mActiveGraph].pGraph, mEditorTempPath);
-
-        // Register an update callback
-        monitorFileUpdates(mEditorTempPath, std::bind(&Renderer::editorFileChangeCB, this));
-
-        // Run the process
-        std::string commandLineArgs = kEditorSwitch + " " + kGraphFileSwitch + " " + mEditorTempPath.string() + " " + kGraphNameSwitch + " " + mGraphs[mActiveGraph].pGraph->getName();
-        mEditorProcess = executeProcess(kEditorExecutableName, commandLineArgs);
-
-        // Mark the output if it's required
-        if (unmarkOut) mGraphs[mActiveGraph].pGraph->markOutput(mGraphs[mActiveGraph].mainOutput);
-    }
-
-    void Renderer::resetEditor()
-    {
-        if (mEditorProcess)
-        {
-            closeSharedFile(mEditorTempPath);
-            std::filesystem::remove(mEditorTempPath);
-            if (mEditorProcess != kInvalidProcessId)
-            {
-                terminateProcess(mEditorProcess);
-                mEditorProcess = 0;
-            }
         }
     }
 
@@ -577,41 +529,6 @@ namespace Mogwai
         return mpScene;
     }
 
-    void Renderer::applyEditorChanges()
-    {
-        if (!mEditorProcess) return;
-        // If the editor was closed, reset the handles
-        if ((mEditorProcess != kInvalidProcessId) && isProcessRunning(mEditorProcess) == false) resetEditor();
-
-        if (mEditorScript.empty()) return;
-
-        // Unmark the current output if it wasn't originally marked
-        auto pActiveGraph = mGraphs[mActiveGraph].pGraph;
-        bool hasUnmarkedOut = (isInVector(mGraphs[mActiveGraph].originalOutputs, mGraphs[mActiveGraph].mainOutput) == false);
-        if (hasUnmarkedOut) pActiveGraph->unmarkOutput(mGraphs[mActiveGraph].mainOutput);
-
-        // Run the scripting
-        // TODO: Rendergraph scripts should be executed in an isolated scripting context.
-        Scripting::getDefaultContext().setObject("g", pActiveGraph);
-        Scripting::runScript(mEditorScript);
-
-        // Update the list of marked outputs
-        mGraphs[mActiveGraph].originalOutputs = getGraphOutputs(pActiveGraph);
-
-        // If the output before the update was not initially marked but still exists, re-mark it.
-        // If it no longer exists, mark a new output from the list of currently marked outputs.
-        if (hasUnmarkedOut && isInVector(pActiveGraph->getAvailableOutputs(), mGraphs[mActiveGraph].mainOutput))
-        {
-            pActiveGraph->markOutput(mGraphs[mActiveGraph].mainOutput);
-        }
-        else if (isInVector(mGraphs[mActiveGraph].originalOutputs, mGraphs[mActiveGraph].mainOutput) == false)
-        {
-            mGraphs[mActiveGraph].mainOutput = mGraphs[mActiveGraph].originalOutputs[0];
-        }
-
-        mEditorScript.clear();
-    }
-
     void Renderer::executeActiveGraph(RenderContext* pRenderContext)
     {
         if (mGraphs.empty()) return;
@@ -649,8 +566,6 @@ namespace Mogwai
             mScriptPath.clear();
             loadScript(path);
         }
-
-        applyEditorChanges();
 
         if (mActiveGraph < mGraphs.size())
         {

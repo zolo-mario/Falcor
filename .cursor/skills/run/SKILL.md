@@ -126,7 +126,7 @@ tests/view_image_tests.bat
 | Debug | `build/windows-vs2022/bin/Debug/` |
 | Release | `build/windows-vs2022/bin/Release/` |
 
-可执行文件：`Karma.exe`、`Mogwai.exe`、`Niagara.exe`、`FalcorTest.exe`、`ImageCompare.exe`、`RenderGraphEditor.exe`
+可执行文件：`Karma.exe`、`Mogwai.exe`、`Niagara.exe`、`FalcorTest.exe`、`ImageCompare.exe`
 
 ## Packman Python（Falcor Python 脚本）
 

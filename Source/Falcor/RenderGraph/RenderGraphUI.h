@@ -16,7 +16,7 @@ class RenderGraphUI;
 class RenderContext;
 
 /**
- * Class for drawing UI elements for a render pass in the render graph editor.
+ * Class for drawing UI elements for a render pass in Mogwai's graph UI.
  */
 class FALCOR_API RenderPassUI
 {
@@ -64,7 +64,7 @@ private:
 };
 
 /**
- * Class for drawing UI elements for a graph in the render graph editor.
+ * Class for drawing UI elements for a graph in Mogwai's graph UI.
  */
 class FALCOR_API RenderGraphUI
 {

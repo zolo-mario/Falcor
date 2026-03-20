@@ -133,6 +133,7 @@ namespace Mogwai
         ref<Scene> mpScene;
 
         void addGraph(const ref<RenderGraph>& pGraph);
+        void setActiveGraph(uint32_t active);
         void setActiveGraph(const ref<RenderGraph>& pGraph);
         void removeGraph(const ref<RenderGraph>& pGraph);
         void removeGraph(const std::string& graphName);
@@ -165,18 +166,6 @@ namespace Mogwai
         uint32_t mActiveGraph = 0;
         ref<Sampler> mpSampler = nullptr;
         std::filesystem::path mScriptPath;
-
-        // Editor stuff
-        void openEditor();
-        void resetEditor();
-        void editorFileChangeCB();
-        void applyEditorChanges();
-        void setActiveGraph(uint32_t active);
-
-        static constexpr size_t kInvalidProcessId = -1; // We use this to know that the editor was launching the viewer
-        size_t mEditorProcess = 0;
-        std::filesystem::path mEditorTempPath;
-        std::string mEditorScript;
 
         KeyCallback mKeyCallback;
         SceneUpdateCallback mSceneUpdateCallback;
