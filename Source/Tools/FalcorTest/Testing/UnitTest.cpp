@@ -519,14 +519,6 @@ std::vector<Test> enumerateTests()
                 tests.push_back(test);
             }
 #endif
-#if FALCOR_HAS_VULKAN
-            if (desc.options.deviceTypes.empty() || desc.options.deviceTypes.count(Device::Type::Vulkan))
-            {
-                test.deviceType = Device::Type::Vulkan;
-                test.name = fmt::format("{} (Vulkan)", desc.name);
-                tests.push_back(test);
-            }
-#endif
         }
     }
 

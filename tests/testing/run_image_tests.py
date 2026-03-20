@@ -550,8 +550,6 @@ def collect_tests(root_dir, filter_regex, tags)->list[Test]:
         if not config.PLATFORM in platforms:
             continue
 
-        # For now we default to d3d12 as we bring in image tests on vulkan.
-        # We should later switch this default to ["d3d12", "vulkan"].
         device_types = header.get("device_types", ["d3d12"])
         device_types = [d for d in device_types if d in config.SUPPORTED_DEVICE_TYPES]
         for device_type in device_types:

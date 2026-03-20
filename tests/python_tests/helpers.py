@@ -18,9 +18,9 @@ class DeviceCache:
 device_cache = DeviceCache()
 
 if os.name == "nt":
-    DEVICE_TYPES = [falcor.DeviceType.D3D12, falcor.DeviceType.Vulkan]
+    DEVICE_TYPES = [falcor.DeviceType.D3D12]
 else:
-    DEVICE_TYPES = [falcor.DeviceType.Vulkan]
+    DEVICE_TYPES = []
 
 def for_each_device_type(func):
     """

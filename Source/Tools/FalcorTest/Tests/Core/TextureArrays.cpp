@@ -88,18 +88,8 @@ void runTest(GPUUnitTestContext& ctx, std::array<int, 3> bits)
 
 GPU_TEST(Texture_NestedArrays)
 {
-    // Nested texture arrays are not supported on Vulkan, so expect error when using Vulkan device
-    if (ctx.getDevice()->getType() != Device::Type::Vulkan)
-    {
-        runTest(ctx, {1, 1, 1});
-        runTest(ctx, {2, 0, 1});
-        runTest(ctx, {0, 0, 3});
-    }
-    else
-    {
-        EXPECT_THROW(runTest(ctx, {1, 1, 1}));
-        EXPECT_THROW(runTest(ctx, {2, 0, 1}));
-        EXPECT_THROW(runTest(ctx, {0, 0, 3}));
-    }
+    runTest(ctx, {1, 1, 1});
+    runTest(ctx, {2, 0, 1});
+    runTest(ctx, {0, 0, 3});
 }
 } // namespace Falcor

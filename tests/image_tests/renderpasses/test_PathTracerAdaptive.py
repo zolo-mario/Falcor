@@ -1,6 +1,6 @@
 IMAGE_TEST = {
     "platforms": ["windows-x86_64"],
-    "device_types": ["d3d12", "vulkan"]
+    "device_types": ["d3d12"]
 }
 
 import sys

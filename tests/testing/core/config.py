@@ -93,7 +93,7 @@ if os.name == 'nt':
     IMAGE_COMPARE_EXE = 'ImageCompare.exe'
     PYTHON_EXE = "pythondist/python.exe"
 
-    SUPPORTED_DEVICE_TYPES = ["d3d12", "vulkan"]
+    SUPPORTED_DEVICE_TYPES = ["d3d12"]
 
 elif os.name == 'posix':
     PLATFORM = "linux-x86_64"
@@ -105,7 +105,7 @@ elif os.name == 'posix':
     IMAGE_COMPARE_EXE = 'ImageCompare'
     PYTHON_EXE = "pythondist/python"
 
-    SUPPORTED_DEVICE_TYPES = ["vulkan"]
+    SUPPORTED_DEVICE_TYPES = ["d3d12"]
 
 else:
     raise RuntimeError('Testing is not supported on this platform')

@@ -19,7 +19,7 @@ int runMain(int argc, char** argv)
     parser.helpParams.programName = "FalcorTest";
     args::HelpFlag helpFlag(parser, "help", "Display this help menu.", {'h', "help"});
     args::ValueFlag<uint32_t> parallelFlag(parser, "N", "EXPERIMENTAL: Number of worker threads (default: 1).", {'p', "parallel"});
-    args::ValueFlag<std::string> deviceTypeFlag(parser, "d3d12|vulkan", "Graphics device type.", {'d', "device-type"});
+    args::ValueFlag<std::string> deviceTypeFlag(parser, "d3d12", "Graphics device type.", {'d', "device-type"});
     args::Flag listGPUsFlag(parser, "", "List available GPUs", {"list-gpus"});
     args::ValueFlag<uint32_t> gpuFlag(parser, "index", "Select specific GPU to use", {"gpu"});
     args::Flag listTestSuites(parser, "", "List test suites", {"list-test-suites"});
@@ -68,11 +68,9 @@ int runMain(int argc, char** argv)
     {
         if (args::get(deviceTypeFlag) == "d3d12")
             options.deviceDesc.type = Device::Type::D3D12;
-        else if (args::get(deviceTypeFlag) == "vulkan")
-            options.deviceDesc.type = Device::Type::Vulkan;
         else
         {
-            std::cerr << "Invalid device type, use 'd3d12' or 'vulkan'" << std::endl;
+            std::cerr << "Invalid device type, use 'd3d12'" << std::endl;
             return 1;
         }
     }

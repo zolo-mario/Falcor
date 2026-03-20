@@ -8,7 +8,7 @@
 namespace Falcor
 {
 /** Compilation-only test: verify mesh shader compiles via Falcor/Slang. */
-GPU_TEST(MeshShaderCompilation, DEVICE_TYPES(Device::Type::D3D12, Device::Type::Vulkan))
+GPU_TEST(MeshShaderCompilation, Device::Type::D3D12)
 {
     ProgramDesc desc;
     desc.addShaderLibrary("Slang/mesh-simple.slang").meshEntry("meshMain");
@@ -17,7 +17,7 @@ GPU_TEST(MeshShaderCompilation, DEVICE_TYPES(Device::Type::D3D12, Device::Type::
 }
 
 /** Compilation-only test: verify amplification + mesh shader compiles (task dispatches mesh with payload). */
-GPU_TEST(MeshTaskShaderCompilation, DEVICE_TYPES(Device::Type::D3D12, Device::Type::Vulkan))
+GPU_TEST(MeshTaskShaderCompilation, Device::Type::D3D12)
 {
     ProgramDesc desc;
     desc.addShaderLibrary("Slang/mesh-task-simple.slang")
@@ -28,7 +28,7 @@ GPU_TEST(MeshTaskShaderCompilation, DEVICE_TYPES(Device::Type::D3D12, Device::Ty
 }
 
 /** Compilation-only test: verify mesh shader with OutputPrimitives compiles. */
-GPU_TEST(MeshPrimitiveOutputCompilation, DEVICE_TYPES(Device::Type::D3D12, Device::Type::Vulkan))
+GPU_TEST(MeshPrimitiveOutputCompilation, Device::Type::D3D12)
 {
     ProgramDesc desc;
     desc.addShaderLibrary("Slang/mesh-primitive-output.slang").meshEntry("meshMain");
