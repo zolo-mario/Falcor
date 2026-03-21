@@ -318,7 +318,9 @@ Falcor/
 ├── scripts/             # Python scripts
 ├── data/                # Data files
 ├── docs/                # Documentation
-└── build_scripts/        # Build scripts
+├── tools/
+│   ├── stubgen/         # pybind11 stub generation (FalcorPython .pyi)
+│   └── build_scripts/   # Deploy, falcor __init__
 ```
 
 ## Documentation Structure

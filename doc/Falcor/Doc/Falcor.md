@@ -163,10 +163,7 @@ Falcor 长期支持通过 Python 进行内部脚本控制（如创建渲染图�
     conda activate falcor-pytorch
     ```
 4.  **配置路径**：
-    进入 Falcor 的二进制输出目录（例如 `build/windows-ninja-msvc/bin/Release`），运行脚本以设置 Python 路径：
-    *   Windows (CMD): `setpath.bat`
-    *   Windows (PowerShell): `setpath.ps1`
-    *   Linux: `setpath.sh`
+    在运行 Python 前，将 Falcor **二进制输出目录**（例如 `build/windows-ninja-msvc/bin/Release`）加入 **`PATH`**，并把该目录下的 **`python`** 子目录加入 **`PYTHONPATH`**（Linux 还需把该输出目录加入 **`LD_LIBRARY_PATH`**，以便加载 `.so`）。
 
 **验证安装**：在 Python 解释器中输入 `import falcor`，若显示加载插件信息则表示成功。
 
