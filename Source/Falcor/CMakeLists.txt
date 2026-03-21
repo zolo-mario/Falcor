@@ -758,13 +758,6 @@ if(FALCOR_WINDOWS)
     )
 endif()
 
-if(FALCOR_LINUX)
-    target_sources(Falcor PRIVATE
-        Core/Platform/Linux/Linux.cpp
-        Core/Platform/Linux/ProgressBarLinux.cpp
-    )
-endif()
-
 if(FALCOR_HAS_D3D12)
     target_sources(Falcor PRIVATE
         Core/API/Shared/D3D12ConstantBufferView.h
@@ -967,7 +960,7 @@ endif()
 
 target_link_libraries(Falcor
     PUBLIC
-        fmt pybind11::embed Vulkan::Headers
+        fmt pybind11::embed
         slang slang-gfx
         imgui imgui_addons
         nanovdb
@@ -975,7 +968,6 @@ target_link_libraries(Falcor
         rtxdi
         $<$<BOOL:${FALCOR_ENABLE_PROFILER}>:TracyClient>
     PRIVATE
-        git_version
         FreeImage assimp OpenEXR OpenVDB lz4 zlib pugixml opensubdiv meshoptimizer
         glfw mikktspace nvtt
         $<$<BOOL:${FALCOR_HAS_D3D12}>:d3d12>
@@ -1025,28 +1017,13 @@ set_target_properties(FalcorPython PROPERTIES
 )
 
 # Generate falcor package __init__.py file.
-file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/python/falcor/__init__.py INPUT ${CMAKE_SOURCE_DIR}/build_scripts/falcor__init__.py)
+file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/python/falcor/__init__.py INPUT ${CMAKE_SOURCE_DIR}/tools/build_scripts/falcor__init__.py)
 
-# Generate python stub files.
-if(FALCOR_WINDOWS)
-    add_custom_command(
-        TARGET FalcorPython POST_BUILD
-        COMMAND ${FALCOR_OUTPUT_DIRECTORY}/setpath.bat & ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/build_scripts/generate_stubs.py ${FALCOR_OUTPUT_DIRECTORY}/python || (exit 0)
-    )
-endif()
-if(FALCOR_LINUX)
-    add_custom_command(
-        TARGET FalcorPython POST_BUILD
-        WORKING_DIRECTORY ${FALCOR_OUTPUT_DIRECTORY}
-        COMMAND ${CMAKE_SOURCE_DIR}/build_scripts/wrap_setpath.sh ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/build_scripts/generate_stubs.py ${FALCOR_OUTPUT_DIRECTORY}/python || (exit 0)
-    )
-endif()
-
-# Generate setpath scripts.
-if(FALCOR_WINDOWS)
-    file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/setpath.bat INPUT ${CMAKE_SOURCE_DIR}/build_scripts/setpath.bat.in)
-    file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/setpath.ps1 INPUT ${CMAKE_SOURCE_DIR}/build_scripts/setpath.ps1.in)
-endif()
-if(FALCOR_LINUX)
-    file(GENERATE OUTPUT ${FALCOR_OUTPUT_DIRECTORY}/setpath.sh INPUT ${CMAKE_SOURCE_DIR}/build_scripts/setpath.sh.in)
-endif()
+# Generate python stub files (same env as legacy setpath.bat / setpath.sh: bin dir on PATH, python package on PYTHONPATH).
+add_custom_command(
+    TARGET FalcorPython POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E env
+        "PATH=${FALCOR_OUTPUT_DIRECTORY};$ENV{PATH}"
+        "PYTHONPATH=${FALCOR_OUTPUT_DIRECTORY}/python;$ENV{PYTHONPATH}"
+        ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/stubgen/generate_stubs.py ${FALCOR_OUTPUT_DIRECTORY}/python
+)

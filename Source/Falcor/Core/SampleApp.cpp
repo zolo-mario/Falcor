@@ -41,9 +41,11 @@ SampleApp::SampleApp(const SampleAppConfig& config)
     if (!config.headless)
     {
         auto windowDesc = config.windowDesc;
+#if FALCOR_HAS_VULKAN
         // Vulkan does not allow creating a swapchain on a minimized window.
         if (config.deviceDesc.type == Device::Type::Vulkan && windowDesc.mode == Window::WindowMode::Minimized)
             windowDesc.mode = Window::WindowMode::Normal;
+#endif
 
         // Create the window
         mpWindow = Window::create(windowDesc, this);

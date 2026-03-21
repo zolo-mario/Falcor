@@ -803,11 +803,17 @@ int runMain(int argc, char** argv)
     {
         if (args::get(deviceTypeFlag) == "d3d12")
             config.deviceDesc.type = Device::Type::D3D12;
+#if FALCOR_HAS_VULKAN
         else if (args::get(deviceTypeFlag) == "vulkan")
             config.deviceDesc.type = Device::Type::Vulkan;
+#endif
         else
         {
-            std::cerr << "Invalid device type, use 'd3d12' or 'vulkan'" << std::endl;
+            std::cerr << "Invalid device type, use 'd3d12'"
+#if FALCOR_HAS_VULKAN
+                      << " or 'vulkan'"
+#endif
+                      << std::endl;
             return 1;
         }
     }

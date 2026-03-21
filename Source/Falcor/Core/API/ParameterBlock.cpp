@@ -248,12 +248,14 @@ ParameterBlock::ParameterBlock(
 
 void ParameterBlock::initializeResourceBindings()
 {
+#if FALCOR_HAS_VULKAN
     // On Vulkan nested arrays of textures resources fail silently,
     // so use reflection to catch errors early
     if (mpDevice->getType() == Device::Type::Vulkan)
     {
         checkForNestedTextureArrayResources();
     }
+#endif
 
     for (uint32_t i = 0; i < mpReflector->getResourceRangeCount(); i++)
     {

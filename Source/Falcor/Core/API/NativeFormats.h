@@ -132,7 +132,7 @@ enum DXGI_FORMAT
 };
 #endif
 
-#if __has_include(<vulkan/vulkan.h>)
+#if FALCOR_HAS_VULKAN
 #include <vulkan/vulkan.h>
 #else
 typedef enum VkFormat

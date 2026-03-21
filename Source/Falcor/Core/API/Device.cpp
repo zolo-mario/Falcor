@@ -568,11 +568,13 @@ Device::Device(const Desc& desc) : mDesc(desc)
             mSupportedFeatures |= SupportedFeatures::RaytracingReordering;
     }
 #endif
+#if FALCOR_HAS_VULKAN
     if (getType() == Type::Vulkan)
     {
         // Vulkan always supports SER.
         mSupportedFeatures |= SupportedFeatures::ShaderExecutionReorderingAPI;
     }
+#endif
 
     mSupportedShaderModel = querySupportedShaderModel(mGfxDevice);
     mDefaultShaderModel = std::min(kDefaultShaderModel, mSupportedShaderModel);

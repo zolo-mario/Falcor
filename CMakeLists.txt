@@ -5,8 +5,6 @@ cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0104 NEW)
 cmake_policy(SET CMP0057 NEW)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
-
 project(Falcor
     DESCRIPTION "Falcor Realtime Rendering Framework"
     LANGUAGES CXX C
@@ -50,17 +48,14 @@ set(FALCOR_SKIP_PACKMAN OFF CACHE BOOL "Skip packman pull when .packman exists (
 if(${CMAKE_SYSTEM_NAME} MATCHES "Window")
     set(FALCOR_PLATFORM "Windows")
     set(FALCOR_WINDOWS TRUE)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(FALCOR_PLATFORM "Linux")
-    set(FALCOR_LINUX TRUE)
 else()
-    message(FATAL_ERROR "Unsupported platform!")
+    message(FATAL_ERROR "Unsupported platform! Falcor is Windows-only.")
 endif()
 message(STATUS "Platform: ${FALCOR_PLATFORM}")
 
-# Check if D3D12/Vulkan are available.
+# Check if D3D12 is available (Vulkan disabled in this fork).
 set(FALCOR_HAS_D3D12 ${FALCOR_WINDOWS})
-set(FALCOR_HAS_VULKAN ON)
+set(FALCOR_HAS_VULKAN OFF)
 
 # -----------------------------------------------------------------------------
 # git submodules
@@ -85,13 +80,8 @@ endif()
 # the dependencies when the project is built such that they are updated automatically
 # if the manifest files change.
 
-if(FALCOR_WINDOWS)
-    set(PACKMAN "${CMAKE_SOURCE_DIR}/tools/packman/packman.cmd")
-    set(PACKMAN_PLATFORM "windows-x86_64")
-elseif(FALCOR_LINUX)
-    set(PACKMAN "${CMAKE_SOURCE_DIR}/tools/packman/packman")
-    set(PACKMAN_PLATFORM "linux-x86_64")
-endif()
+set(PACKMAN "${CMAKE_SOURCE_DIR}/tools/packman/packman.cmd")
+set(PACKMAN_PLATFORM "windows-x86_64")
 
 # Detect CI environment - always run packman in CI (GitHub Actions, etc.)
 if(DEFINED ENV{GITHUB_ACTIONS} AND "$ENV{GITHUB_ACTIONS}" STREQUAL "true")
@@ -125,23 +115,6 @@ endif()
 # Misc
 # -----------------------------------------------------------------------------
 
-# Setup workaround for re-running mt.exe when it fails due to a race condition with AV software.
-include(mt-retry)
-
-# Embed git information.
-include(git_version)
-git_version_setup()
-
-# On Linux, we build with RPATH set to $ORIGIN to make build relocatable.
-# Also, we link with precompiled libraries that are compiled with _GLIBCXX_USE_CXX11_ABI=0,
-# so we need to compile with the same flag to avoid ABI incompatibilities.
-if(FALCOR_LINUX)
-    set(CMAKE_INSTALL_RPATH $ORIGIN)
-    set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
-    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0)
-endif()
-
-
 # CUDA - Disabled
 # -----------------------------------------------------------------------------
 set(FALCOR_HAS_CUDA OFF)
@@ -157,11 +130,7 @@ else()
     find_package(Python COMPONENTS Interpreter Development REQUIRED)
 endif()
 
-if(FALCOR_WINDOWS)
-    set(TOOLS_PYTHON ${CMAKE_SOURCE_DIR}/tools/.packman/python/python)
-elseif(FALCOR_LINUX)
-    set(TOOLS_PYTHON ${Python_EXECUTABLE})
-endif()
+set(TOOLS_PYTHON ${CMAKE_SOURCE_DIR}/tools/.packman/python/python)
 
 # -----------------------------------------------------------------------------
 # Global setup
@@ -367,15 +336,9 @@ set(output_dir ${FALCOR_OUTPUT_DIRECTORY})
 file(TO_NATIVE_PATH ${source_dir} source_dir)
 file(TO_NATIVE_PATH ${output_dir} output_dir)
 
-if(FALCOR_WINDOWS)
-    add_custom_target(deploy_dependencies ALL
-        COMMAND ${CMAKE_SOURCE_DIR}/build_scripts/deploycommon.bat ${source_dir} ${output_dir} $<CONFIG> ${FALCOR_SLANG_DIR} ${FALCOR_DLSS_DIR}
-    )
-elseif(FALCOR_LINUX)
-    add_custom_target(deploy_dependencies ALL
-        COMMAND ${CMAKE_SOURCE_DIR}/build_scripts/deploycommon.sh ${source_dir} ${output_dir} $<CONFIG> ${FALCOR_SLANG_DIR} ${FALCOR_DLSS_DIR}
-    )
-endif()
+add_custom_target(deploy_dependencies ALL
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/build_scripts/deploycommon.bat ${source_dir} ${output_dir} $<CONFIG> ${FALCOR_SLANG_DIR} ${FALCOR_DLSS_DIR}
+)
 set_target_properties(deploy_dependencies PROPERTIES FOLDER "Misc")
 
 

@@ -674,10 +674,12 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
         targetDesc.format = SLANG_DXIL;
         targetMacroName = "FALCOR_D3D12";
         break;
+#if FALCOR_HAS_VULKAN
     case Device::Type::Vulkan:
         targetDesc.format = SLANG_SPIRV;
         targetMacroName = "FALCOR_VULKAN";
         break;
+#endif
     default:
         FALCOR_UNREACHABLE();
     }
