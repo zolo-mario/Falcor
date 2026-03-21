@@ -1435,5 +1435,8 @@ namespace Falcor
         {
             return mMeshStaticData;
         }
+
+        /** Global triangle index data (same layout as internal raster/UV paths). Requires CPU split buffers (see hasCpuData()). */
+        const SplitIndexBuffer& getMeshIndexData() const { return mMeshIndexData; }
     };
 }
