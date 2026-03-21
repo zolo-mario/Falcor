@@ -18,7 +18,7 @@ kanban-plugin: basic
 
 ## 已完成 (Done)
 
-- [x] 基线 `74b3eab4`（2026-01-29）CMake presets / VS Code README — 下列均为该提交之后仓库内全部提交汇总 #milestone
+- [x] TinyRenderer：CPU 管线与三角形光栅 @2026-03-21 #sample
 - [x] 2026-03-21：移除 Serena MCP；Windows-only / Vulkan、git 版本嵌入移除、构建脚本迁至 tools；stub-gen skill；Falcor 与 renderpass 文档 @2026-03-21
 - [x] 2026-03-20：DLSS 图测 nvidia、恢复 Mogwai/RenderPasses；移除 Vulkan 测试；RenderGraphEditor 与 Mogwai 外部编辑移除；Serena python/hlsl/行尾配置；根目录合并 build/setup 与 CI；统一 VS2022 @2026-03-20
 - [x] 2026-03-07：GraphicsGems；安装 Serena；falcor-dev；Niagara 迁移文档；构建脚本与 setup.ps1；VS2026 检测与 merge upstream @2026-03-07

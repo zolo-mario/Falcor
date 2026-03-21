@@ -37,3 +37,4 @@
 
 # Claude folders.
 /.claude/
+.cursor/plans/
