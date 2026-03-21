@@ -18,6 +18,7 @@ kanban-plugin: basic
 
 ## 已完成 (Done)
 
+- [x] TinyRaytracer：CPU 光线追踪示例、水平平面地面（替代大球地板）@2026-03-21 #sample
 - [x] TinyRenderer：CPU 管线与三角形光栅 @2026-03-21 #sample
 - [x] 2026-03-21：移除 Serena MCP；Windows-only / Vulkan、git 版本嵌入移除、构建脚本迁至 tools；stub-gen skill；Falcor 与 renderpass 文档 @2026-03-21
 - [x] 2026-03-20：DLSS 图测 nvidia、恢复 Mogwai/RenderPasses；移除 Vulkan 测试；RenderGraphEditor 与 Mogwai 外部编辑移除；Serena python/hlsl/行尾配置；根目录合并 build/setup 与 CI；统一 VS2022 @2026-03-20
