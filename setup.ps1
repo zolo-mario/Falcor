@@ -70,8 +70,8 @@ if ($LASTEXITCODE -ne 0) {
 $VscodePath = Join-Path $Root ".vscode"
 if (-not (Test-Path $VscodePath)) {
     Write-Host "Setting up VS Code workspace ..."
-    New-Item -ItemType Directory -Path $VscodePath | Out-Null
-    Copy-Item -Path "$Root\.vscode-default\*" -Destination $VscodePath -Recurse -Force
+    # New-Item -ItemType Directory -Path $VscodePath | Out-Null
+    # Copy-Item -Path "$Root\.vscode-default\*" -Destination $VscodePath -Recurse -Force
 }
 
 if ($DepsOnly) {
